@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Skull King">
+<meta name="theme-color" content="#0a1520">
+<title>Skull King — Compteur de points</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💀</text></svg>">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+--gold:#c8860a;--gold-lt:#f0c040;--gold-dk:#8a5c05;
+--navy:#0a1520;--navy2:#122234;--navy3:#1b3149;
+--ink:#1c1408;--ink2:#4a3d28;--muted:#8a7862;
+--card:#fffdf7;--card2:#faf4e6;--bg:#f2ebdb;--border:#ddc9a8;--border2:#c9ae86;
+--ok:#1a6b3c;--ok-bg:#e6f7ed;--ko:#9b2020;--ko-bg:#fdecec;
+--glow:rgba(200,134,10,.2);
+--shadow:0 2px 10px rgba(60,40,10,.07);
+--shadow-lg:0 8px 30px rgba(60,40,10,.13);
+--safe-t:env(safe-area-inset-top,0px);
+--safe-b:env(safe-area-inset-bottom,0px);
+}
+body.dark{
+--gold:#e0a020;--gold-lt:#ffd45e;--gold-dk:#b8830f;
+--ink:#f2e9d6;--ink2:#c9bda6;--muted:#8b9aa8;
+--card:#182636;--card2:#12202e;--bg:#0d1824;--border:#2b3f54;--border2:#3d5570;
+--ok:#3ddc84;--ok-bg:#0f2e1d;--ko:#ff6b6b;--ko-bg:#331414;
+--shadow:0 2px 10px rgba(0,0,0,.3);
+--shadow-lg:0 8px 30px rgba(0,0,0,.45);
+}
+html{background:var(--bg)}
+body{
+font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
+background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;
+overscroll-behavior-y:none;min-height:100vh;
+transition:background .3s,color .3s;
+}
+.app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:calc(var(--safe-b) + 20px)}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-9px) rotate(2deg)}}
+@keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+@keyframes pop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes tick{0%{transform:scale(1.45)}100%{transform:scale(1)}}
+@keyframes ripple{0%{transform:scale(0);opacity:.45}100%{transform:scale(3.2);opacity:0}}
+@keyframes fly{0%{transform:translateY(6px) scale(.7);opacity:0}25%{opacity:1;transform:translateY(0) scale(1.15)}100%{transform:translateY(-42px) scale(.95);opacity:0}}
+@keyframes confetti{0%{transform:translateY(-10px) rotate(0);opacity:1}100%{transform:translateY(130px) rotate(540deg);opacity:0}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--glow)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes slideDown{from{transform:translateY(-80px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes glowRow{0%,100%{background:transparent}50%{background:var(--ok-bg)}}
+@keyframes glowRowBad{0%,100%{background:transparent}50%{background:var(--ko-bg)}}
+@keyframes barGrow{from{width:0}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+/* ═══ SCREENS ═══ */
+.screen{display:none;padding:0 16px 40px}
+.screen.on{display:block;animation:fadeUp .3s cubic-bezier(.2,.7,.2,1)}
+
+/* ═══ TOPBAR ═══ */
+.topbar{
+position:sticky;top:0;z-index:50;
+padding:calc(var(--safe-t) + 10px) 16px 10px;
+background:linear-gradient(180deg,var(--bg) 72%,transparent);
+display:flex;align-items:center;gap:10px;
+backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.tb-title{flex:1;font-size:16px;font-weight:700;letter-spacing:.3px}
+.tb-sub{font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
+.icon-btn{
+width:38px;height:38px;border-radius:12px;border:1px solid var(--border);
+background:var(--card);color:var(--ink);font-size:17px;cursor:pointer;
+display:flex;align-items:center;justify-content:center;flex-shrink:0;
+transition:transform .12s,background .15s;box-shadow:var(--shadow);
+}
+.icon-btn:active{transform:scale(.9)}
+
+/* ═══ HERO ═══ */
+.hero{
+background:linear-gradient(155deg,var(--navy) 0%,var(--navy2) 55%,var(--navy3) 100%);
+border-radius:26px;padding:38px 20px 30px;text-align:center;
+margin:0 0 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-lg);
+}
+.hero-orb{position:absolute;border-radius:50%;pointer-events:none}
+.o1{top:-90px;left:50%;transform:translateX(-50%);width:300px;height:300px;background:radial-gradient(circle,rgba(200,134,10,.18),transparent 70%)}
+.o2{bottom:-70px;right:-50px;width:200px;height:200px;background:radial-gradient(circle,rgba(83,74,183,.16),transparent 70%)}
+.hero-skull{font-size:66px;display:block;margin-bottom:12px;animation:bob 3.6s ease-in-out infinite;filter:drop-shadow(0 6px 16px rgba(200,134,10,.35))}
+.hero-title{
+font-size:34px;font-weight:800;letter-spacing:2.5px;line-height:1;
+background:linear-gradient(110deg,var(--gold-lt),#fff3c4,var(--gold),var(--gold-lt));
+background-size:250% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+background-clip:text;animation:shimmer 4s linear infinite;
+}
+.hero-sub{font-size:12px;color:rgba(255,255,255,.36);margin-top:9px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600}
+
+/* ═══ CARDS ═══ */
+.card{
+background:var(--card);border:1px solid var(--border);border-radius:20px;
+padding:16px;margin-bottom:12px;box-shadow:var(--shadow);
+}
+.card.flush{padding:14px 16px}
+.clabel{
+font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;
+letter-spacing:1.2px;margin-bottom:12px;display:flex;align-items:center;gap:6px;
+}
+.clabel .cl-act{margin-left:auto;color:var(--gold);text-transform:none;letter-spacing:0;font-size:12px;font-weight:700;cursor:pointer}
+
+/* ═══ INPUTS ═══ */
+input[type=text]{
+background:var(--card2);border:1.5px solid var(--border);border-radius:13px;
+padding:12px 14px;font-size:16px;color:var(--ink);width:100%;outline:none;
+-webkit-appearance:none;transition:border-color .2s,box-shadow .2s;font-weight:600;
+}
+input[type=text]:focus{border-color:var(--gold);box-shadow:0 0 0 4px var(--glow)}
+input[type=text]::placeholder{color:var(--muted);font-weight:400}
+
+/* ═══ BUTTONS ═══ */
+.btn{
+display:block;width:100%;padding:16px;border-radius:17px;font-size:16px;
+font-weight:700;cursor:pointer;border:none;-webkit-appearance:none;
+transition:transform .12s,box-shadow .15s,opacity .15s;text-align:center;
+letter-spacing:.3px;position:relative;overflow:hidden;
+}
+.btn:active{transform:scale(.965)}
+.btn-gold{background:linear-gradient(135deg,#e8a218,var(--gold) 55%,var(--gold-dk));color:#1a0f00;box-shadow:0 5px 20px rgba(200,134,10,.38)}
+.btn-gold:active{box-shadow:0 2px 10px rgba(200,134,10,.25)}
+.btn-line{background:var(--card);border:1.5px solid var(--border);color:var(--ink);box-shadow:var(--shadow)}
+.btn-navy{background:linear-gradient(135deg,var(--navy2),var(--navy));color:var(--gold-lt);box-shadow:0 5px 18px rgba(10,21,32,.3)}
+.btn-ghost{background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;padding:13px;width:100%;text-align:center}
+.btn-sm{padding:11px;font-size:14px;border-radius:13px}
+.btn-row{display:flex;gap:10px}
+.btn-row .btn{flex:1}
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.4);width:90px;height:90px;margin:-45px 0 0 -45px;animation:ripple .65s ease-out forwards;pointer-events:none}
+
+/* ═══ SEGMENTED / CHOICE ═══ */
+.seg{display:flex;background:var(--card2);border-radius:14px;padding:3px;gap:3px;border:1px solid var(--border)}
+.seg-i{
+flex:1;padding:10px 6px;border-radius:11px;font-size:13px;font-weight:700;
+text-align:center;cursor:pointer;color:var(--muted);transition:all .18s;border:none;background:none;
+}
+.seg-i.on{background:var(--gold);color:#1a0f00;box-shadow:0 2px 8px rgba(200,134,10,.3)}
+
+.opt{
+display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;
+border:1.5px solid var(--border);background:var(--card2);cursor:pointer;
+margin-bottom:8px;transition:all .18s;
+}
+.opt.on{border-color:var(--gold);background:var(--glow);box-shadow:0 0 0 3px var(--glow)}
+.opt-icon{font-size:20px;width:26px;text-align:center;flex-shrink:0}
+.opt-body{flex:1;min-width:0}
+.opt-t{font-size:14px;font-weight:700;color:var(--ink)}
+.opt-d{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.4}
+.opt-chk{
+width:22px;height:22px;border-radius:50%;border:2px solid var(--border2);flex-shrink:0;
+display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent;transition:all .18s;
+}
+.opt.on .opt-chk{background:var(--gold);border-color:var(--gold);color:#1a0f00}
+
+/* toggle */
+.tgl-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.tgl-row:last-child{border-bottom:none}
+.tgl-body{flex:1}
+.tgl-t{font-size:14px;font-weight:700}
+.tgl-d{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.4}
+.tgl{width:50px;height:30px;border-radius:15px;background:var(--border2);position:relative;cursor:pointer;transition:background .22s;flex-shrink:0;border:none}
+.tgl::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .22s cubic-bezier(.3,1.4,.5,1);box-shadow:0 2px 5px rgba(0,0,0,.2)}
+.tgl.on{background:var(--gold)}
+.tgl.on::after{transform:translateX(20px)}
+
+/* ═══ PLAYER SETUP ═══ */
+.prow{display:flex;gap:10px;align-items:center;margin-bottom:9px;animation:fadeUp .22s ease}
+.prow input{flex:1}
+.pav{
+width:44px;height:44px;border-radius:14px;flex-shrink:0;display:flex;
+align-items:center;justify-content:center;font-size:19px;border:1.5px solid;
+box-shadow:var(--shadow);position:relative;
+}
+.pav.sm{width:30px;height:30px;border-radius:10px;font-size:14px;border-width:1px}
+.pav.xs{width:26px;height:26px;border-radius:9px;font-size:12px;border-width:1px}
+.dealer-dot{
+position:absolute;top:-4px;right:-4px;width:17px;height:17px;border-radius:50%;
+background:var(--gold);color:#1a0f00;font-size:9px;font-weight:800;
+display:flex;align-items:center;justify-content:center;border:2px solid var(--card);
+}
+.rm{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;padding:6px 8px;line-height:1;transition:color .15s,transform .12s}
+.rm:active{color:var(--ko);transform:scale(.85)}
+
+/* ═══ ROUND BAR ═══ */
+.rbar{
+background:linear-gradient(135deg,var(--navy),var(--navy2));border-radius:20px;
+padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:10px;
+box-shadow:0 5px 20px rgba(10,21,32,.25);
+}
+.rb-l{flex:1;min-width:0}
+.rb-lbl{color:var(--gold);font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase}
+.rb-cards{color:rgba(255,255,255,.42);font-size:11.5px;margin-top:3px;font-weight:600}
+.rb-r{text-align:right}
+.rb-num{color:#fff;font-size:25px;font-weight:800;line-height:1}
+.rb-num small{color:rgba(255,255,255,.32);font-size:14px;font-weight:500}
+.rb-chip{
+display:inline-block;margin-top:4px;padding:2px 9px;border-radius:9px;
+background:rgba(200,134,10,.18);color:var(--gold-lt);font-size:10px;font-weight:700;
+}
+
+/* ═══ PROGRESS ═══ */
+.prog{height:5px;background:var(--border);border-radius:3px;margin-bottom:9px;overflow:hidden}
+.prog-f{height:100%;background:linear-gradient(90deg,var(--gold-dk),var(--gold-lt));border-radius:3px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.dots{display:flex;gap:4px;margin-bottom:14px}
+.dot{flex:1;height:7px;border-radius:4px;background:var(--border);transition:all .4s;position:relative;cursor:pointer}
+.dot.done{background:var(--gold);opacity:.45}
+.dot.cur{background:var(--gold);animation:pulse 1.8s ease infinite}
+
+/* ═══ PHASE PILL ═══ */
+.phase{
+display:inline-flex;align-items:center;gap:7px;padding:7px 15px;border-radius:22px;
+font-size:12px;font-weight:700;margin-bottom:13px;letter-spacing:.2px;
+}
+.ph-bid{background:var(--navy2);color:var(--gold-lt)}
+.ph-play{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok)}
+.ph-edit{background:var(--ko-bg);color:var(--ko);border:1px solid var(--ko)}
+
+/* ═══ PLAYER ROW ═══ */
+.plr{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+.plr:last-child{border-bottom:none}
+.plr-b{flex:1;min-width:0}
+.plr-n{font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plr-s{font-size:11.5px;color:var(--muted);margin-top:2px;font-weight:600}
+.plr-s b{color:var(--ink)}
+
+/* ═══ STEPPER ═══ */
+.step{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.step-b{
+width:40px;height:40px;border-radius:13px;border:1.5px solid var(--border);
+background:var(--card2);cursor:pointer;font-size:23px;color:var(--ink);font-weight:300;
+display:flex;align-items:center;justify-content:center;-webkit-appearance:none;
+transition:all .12s;position:relative;overflow:hidden;
+}
+.step-b:active{background:var(--gold);color:#1a0f00;border-color:var(--gold);transform:scale(.9)}
+.step-b:disabled{opacity:.3;pointer-events:none}
+.step-v{width:38px;text-align:center;font-size:21px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.step-v.tick{animation:tick .22s ease}
+
+/* quick bid chips */
+.qbid{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.qb{
+min-width:36px;height:34px;padding:0 10px;border-radius:11px;border:1.5px solid var(--border);
+background:var(--card2);font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;
+transition:all .15s;-webkit-appearance:none;
+}
+.qb.on{background:var(--gold);border-color:var(--gold);color:#1a0f00;box-shadow:0 2px 8px rgba(200,134,10,.3)}
+
+/* ═══ BONUS ═══ */
+.bsec{margin-top:13px;padding-top:13px;border-top:1px dashed var(--border)}
+.bhead{
+display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--muted);
+font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;cursor:pointer;
+}
+.bhead .bcount{
+margin-left:auto;background:var(--gold);color:#1a0f00;border-radius:10px;
+padding:2px 9px;font-size:11px;letter-spacing:0;
+}
+.bhead .bcount.zero{background:var(--border);color:var(--muted)}
+.bgrid{display:flex;flex-direction:column;gap:7px}
+.bgrid.hide{display:none}
+.bchip{
+display:flex;align-items:center;gap:10px;background:var(--card2);
+border:1.5px solid var(--border);border-radius:14px;padding:9px 11px;transition:all .2s;
+}
+.bchip.on{border-color:var(--gold);background:var(--glow)}
+.bi{font-size:19px;width:24px;text-align:center;flex-shrink:0}
+.bd{flex:1;min-width:0}
+.bt{font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.3}
+.bp{font-size:10.5px;color:var(--gold);font-weight:700;margin-top:1px}
+.bstep{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.bb{
+width:31px;height:31px;border-radius:10px;border:1.5px solid var(--border);background:var(--card);
+cursor:pointer;font-size:17px;color:var(--gold);display:flex;align-items:center;justify-content:center;
+-webkit-appearance:none;transition:all .12s;font-weight:400;
+}
+.bb:active{background:var(--gold);color:#1a0f00;transform:scale(.88)}
+.bv{font-size:16px;font-weight:800;min-width:19px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* wager / shot chips */
+.mini-seg{display:flex;gap:5px;margin-top:8px}
+.ms{
+flex:1;padding:8px 4px;border-radius:11px;border:1.5px solid var(--border);background:var(--card2);
+font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;text-align:center;transition:all .15s;
+}
+.ms.on{background:var(--gold);border-color:var(--gold);color:#1a0f00}
+
+/* ═══ SCORE TABLE ═══ */
+.sh{
+display:flex;align-items:center;font-size:10px;color:var(--muted);font-weight:800;
+text-transform:uppercase;letter-spacing:.9px;padding:5px 0 8px;border-bottom:1px solid var(--border);
+}
+.sr{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--border);border-radius:10px}
+.sr:last-child{border-bottom:none}
+.sr.lead{background:linear-gradient(90deg,var(--glow),transparent)}
+.sr.hit{animation:glowRow .9s ease}
+.sr.miss{animation:glowRowBad .9s ease}
+.s-rk{width:26px;text-align:center;font-size:14px;font-weight:700;color:var(--muted);flex-shrink:0}
+.s-nm{flex:1;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;min-width:0}
+.s-nm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-dl{width:54px;text-align:right;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;flex-shrink:0}
+.s-dl.p{color:var(--ok)}.s-dl.n{color:var(--ko)}
+.s-tt{width:58px;text-align:right;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;flex-shrink:0}
+
+.fly{position:fixed;right:24px;font-size:24px;font-weight:800;pointer-events:none;z-index:300;animation:fly 1.1s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.15)}
+.fly.p{color:var(--ok)}.fly.n{color:var(--ko)}
+
+/* recap */
+.rec{padding:11px 0;border-bottom:1px dashed var(--border)}
+.rec:last-child{border-bottom:none}
+.rec-h{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.rec-n{font-size:13px;font-weight:700;flex:1}
+.rec-p{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.rec-p.p{color:var(--ok)}.rec-p.n{color:var(--ko)}
+.pills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{font-size:11px;padding:4px 10px;border-radius:11px;background:var(--card2);border:1px solid var(--border);color:var(--muted);font-weight:700}
+.pill.ok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.pill.ko{background:var(--ko-bg);border-color:var(--ko);color:var(--ko)}
+.pill.bon{background:var(--glow);border-color:var(--gold);color:var(--gold-dk)}
+body.dark .pill.bon{color:var(--gold-lt)}
+
+/* ═══ HISTORY / EDIT ═══ */
+.hrow{
+display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);
+cursor:pointer;transition:background .15s;border-radius:10px;
+}
+.hrow:last-child{border-bottom:none}
+.hrow:active{background:var(--card2)}
+.hr-badge{
+width:42px;height:42px;border-radius:14px;background:var(--navy2);color:var(--gold-lt);
+display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;
+}
+.hr-badge b{font-size:16px;font-weight:800;line-height:1}
+.hr-badge i{font-size:9px;font-style:normal;opacity:.6;margin-top:1px}
+.hr-b{flex:1;min-width:0}
+.hr-t{font-size:13.5px;font-weight:700}
+.hr-s{font-size:11.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hr-go{color:var(--gold);font-size:17px;flex-shrink:0}
+
+/* ═══ FULL TABLE ═══ */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -16px;padding:0 16px}
+.tbl{border-collapse:separate;border-spacing:0;font-size:12px;width:100%;min-width:max-content}
+.tbl th{
+color:var(--muted);padding:7px 9px;text-align:center;font-weight:800;font-size:10.5px;
+border-bottom:1.5px solid var(--border);white-space:nowrap;background:var(--card);
+}
+.tbl td{padding:7px 9px;text-align:center;border-bottom:1px solid var(--border);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .nm{text-align:left;position:sticky;left:0;background:var(--card);z-index:2;padding-left:0}
+.tbl th.nm{z-index:3}
+.tbl .tot{background:var(--card2);font-weight:800;font-size:13px}
+.pos{color:var(--ok)}.neg{color:var(--ko)}
+
+/* ═══ WINNER ═══ */
+.win{
+background:linear-gradient(155deg,var(--navy),#1d1040 65%,#2a1550);
+border-radius:26px;padding:42px 20px 34px;text-align:center;margin-bottom:16px;
+position:relative;overflow:hidden;box-shadow:var(--shadow-lg);
+}
+.conf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.win-skull{font-size:74px;display:block;margin-bottom:10px;animation:pop .7s cubic-bezier(.2,1.5,.4,1)}
+.win-crown{font-size:30px;display:block;margin-bottom:6px;animation:pop .5s cubic-bezier(.2,1.5,.4,1) .5s both}
+.win-nm{
+font-size:29px;font-weight:800;margin-bottom:7px;
+background:linear-gradient(110deg,var(--gold-lt),#fff3c4,var(--gold),var(--gold-lt));
+background-size:250% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+background-clip:text;animation:shimmer 3s linear infinite;
+}
+.win-pt{font-size:17px;color:rgba(255,255,255,.65);font-weight:700}
+.win-sb{font-size:11.5px;color:rgba(255,255,255,.32);letter-spacing:1.2px;margin-top:6px;text-transform:uppercase;font-weight:700}
+.fr{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid var(--border)}
+.fr:last-child{border-bottom:none}
+.f-md{font-size:23px;width:34px;text-align:center;flex-shrink:0}
+.f-nm{flex:1;font-size:15px;font-weight:700;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-sc{font-size:22px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+.f-bar{height:4px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden}
+.f-bar i{display:block;height:100%;background:var(--gold);border-radius:2px;animation:barGrow .8s cubic-bezier(.2,.8,.2,1)}
+
+/* ═══ STATS ═══ */
+.stat-g{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stat{background:var(--card2);border-radius:15px;padding:13px;text-align:center}
+.stat-v{font-size:21px;font-weight:800;color:var(--gold)}
+.stat-l{font-size:10.5px;color:var(--muted);margin-top:3px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+
+/* ═══ TOAST ═══ */
+.tw-wrap{position:fixed;top:calc(var(--safe-t) + 12px);left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:900;padding:0 16px}
+.toast{
+background:var(--navy);color:var(--gold-lt);padding:13px 22px;border-radius:24px;
+font-size:14px;font-weight:700;display:none;max-width:100%;text-align:center;
+border:1px solid rgba(200,134,10,.35);box-shadow:0 6px 24px rgba(0,0,0,.35);
+}
+.toast.show{display:block;animation:slideDown .35s cubic-bezier(.2,1.3,.4,1)}
+
+/* ═══ SHEET (modal) ═══ */
+.scrim{
+position:fixed;inset:0;background:rgba(10,15,25,.55);z-index:800;display:none;
+backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+}
+.scrim.on{display:block;animation:fadeIn .22s ease}
+.sheet{
+position:fixed;left:0;right:0;bottom:0;z-index:850;background:var(--bg);
+border-radius:26px 26px 0 0;max-height:88vh;overflow-y:auto;display:none;
+padding:0 16px calc(var(--safe-b) + 24px);-webkit-overflow-scrolling:touch;
+box-shadow:0 -8px 40px rgba(0,0,0,.25);
+}
+.sheet.on{display:block;animation:sheetUp .34s cubic-bezier(.2,.9,.2,1)}
+.sh-grab{width:40px;height:4px;border-radius:3px;background:var(--border2);margin:10px auto 4px}
+.sh-hd{
+position:sticky;top:0;background:var(--bg);padding:8px 0 14px;z-index:5;
+display:flex;align-items:center;gap:10px;
+}
+.sh-t{flex:1;font-size:19px;font-weight:800}
+
+/* ═══ RULES ═══ */
+.rule-h{font-size:15px;font-weight:800;color:var(--gold);margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+.rule-h:first-child{margin-top:4px}
+.rule-p{font-size:13.5px;line-height:1.75;color:var(--ink2);margin-bottom:10px}
+.rule-p b{color:var(--ink);font-weight:700}
+.hier{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.hi{
+display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:13px;
+background:var(--card);border:1px solid var(--border);
+}
+.hi-r{
+width:24px;height:24px;border-radius:8px;background:var(--navy2);color:var(--gold-lt);
+font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.hi-i{font-size:19px;width:26px;text-align:center}
+.hi-t{flex:1;font-size:13px;font-weight:700}
+.hi-d{font-size:11px;color:var(--muted);margin-top:1px;font-weight:500}
+.bonus-tbl{width:100%;font-size:13px;border-collapse:collapse;margin:8px 0}
+.bonus-tbl td{padding:9px 0;border-bottom:1px solid var(--border)}
+.bonus-tbl tr:last-child td{border-bottom:none}
+.bonus-tbl td:last-child{text-align:right;font-weight:800;color:var(--gold);white-space:nowrap}
+.note{
+font-size:12.5px;color:var(--ink2);line-height:1.7;padding:12px 14px;
+background:var(--glow);border-radius:14px;border:1px solid rgba(200,134,10,.28);margin:10px 0;
+}
+.note b{color:var(--ink)}
+.hint{font-size:12px;color:var(--muted);line-height:1.65;margin:4px 0 14px;padding:0 2px}
+
+.empty{text-align:center;padding:36px 20px;color:var(--muted)}
+.empty-i{font-size:44px;margin-bottom:10px;opacity:.4}
+.empty-t{font-size:14px;font-weight:700}
+.sep{height:1px;background:var(--border);margin:12px 0}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="tw-wrap"><div class="toast" id="toast"></div></div>
+
+<!-- ══════════ SETUP ══════════ -->
+<div id="sc-setup" class="screen on">
+  <div style="padding-top:calc(var(--safe-t) + 12px)"></div>
+  <div class="hero">
+    <div class="hero-orb o1"></div><div class="hero-orb o2"></div>
+    <span class="hero-skull">💀</span>
+    <div class="hero-title">SKULL KING</div>
+    <div class="hero-sub">Capitaine des Sept Mers</div>
+  </div>
+
+  <div id="resume-box"></div>
+
+  <div class="card">
+    <div class="clabel">👥 Équipage <span style="margin-left:auto;color:var(--muted);font-weight:700" id="pcount"></span></div>
+    <div id="plist"></div>
+    <button class="btn btn-line btn-sm" style="margin-top:6px" onclick="addPlayer()">＋ Ajouter un matelot</button>
+  </div>
+
+  <div class="card">
+    <div class="clabel">🗺️ Type de partie</div>
+    <div id="modes"></div>
+    <div class="hint" id="mode-desc"></div>
+  </div>
+
+  <div class="card">
+    <div class="clabel">🧮 Décompte des points</div>
+    <div class="seg" style="margin-bottom:10px">
+      <button class="seg-i on" id="sg-sk" onclick="setScoring('sk')">💀 Skull King</button>
+      <button class="seg-i" id="sg-rascal" onclick="setScoring('rascal')">🎩 Rascal</button>
+    </div>
+    <div class="hint" id="scoring-desc"></div>
+    <div id="rascal-opts" style="display:none">
+      <div class="tgl-row">
+        <div class="tgl-body">
+          <div class="tgl-t">Boulet de canon</div>
+          <div class="tgl-d">Chaque joueur choisit Chevrotine (×10, moitié si écart de 1) ou Boulet de canon (×15, rien si raté)</div>
+        </div>
+        <button class="tgl" id="tg-cannon" onclick="toggleOpt('cannonball',this)"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="clabel">⚙️ Options avancées</div>
+    <div class="tgl-row">
+      <div class="tgl-body">
+        <div class="tgl-t">🏴‍☠️ Rascal le Flambeur</div>
+        <div class="tgl-d">Pari de 0, 10 ou 20 points gagné si la mise est exacte, perdu sinon</div>
+      </div>
+      <button class="tgl" id="tg-wager" onclick="toggleOpt('wager',this)"></button>
+    </div>
+    <div class="tgl-row">
+      <div class="tgl-body">
+        <div class="tgl-t">💰 Cartes Butin</div>
+        <div class="tgl-d">Alliance : +20 points chacun si les deux alliés réussissent leur mise</div>
+      </div>
+      <button class="tgl" id="tg-loot" onclick="toggleOpt('loot',this)"></button>
+    </div>
+    <div class="tgl-row">
+      <div class="tgl-body">
+        <div class="tgl-t">🌙 Thème sombre</div>
+        <div class="tgl-d">Idéal pour les soirées à la lueur de la bougie</div>
+      </div>
+      <button class="tgl" id="tg-dark" onclick="toggleDark(this)"></button>
+    </div>
+  </div>
+
+  <button class="btn btn-gold" onclick="startGame(event)">⚓ Appareiller !</button>
+  <button class="btn-ghost" onclick="openRules()">📖 Consulter les règles</button>
+</div>
+
+<!-- ══════════ BID ══════════ -->
+<div id="sc-bid" class="screen">
+  <div class="topbar">
+    <button class="icon-btn" onclick="bidBack()">‹</button>
+    <div style="flex:1"><div class="tb-title">Les mises</div><div class="tb-sub" id="bid-tbsub"></div></div>
+    <button class="icon-btn" onclick="openRules()">📖</button>
+  </div>
+  <div class="rbar" id="bid-bar"></div>
+  <div class="prog"><div class="prog-f" id="bid-prog"></div></div>
+  <div class="dots" id="bid-dots"></div>
+  <span class="phase ph-bid" id="bid-phase">🤜 Combien de plis vas-tu remporter ?</span>
+  <div class="card" id="bid-list"></div>
+  <div class="note" id="bid-note">
+    Poing fermé = mise de <b>0</b>. Frappez trois fois la table et criez « <b>Yo-ho-ho !</b> » — au troisième coup, tout le monde révèle sa mise en même temps.
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:700;padding:0 4px 12px">
+    <span id="bid-sum"></span>
+    <span id="bid-dealer"></span>
+  </div>
+  <button class="btn btn-gold" onclick="confirmBids(event)">Valider les mises →</button>
+</div>
+
+<!-- ══════════ TRICKS ══════════ -->
+<div id="sc-tricks" class="screen">
+  <div class="topbar">
+    <button class="icon-btn" onclick="goto('sc-bid')">‹</button>
+    <div style="flex:1"><div class="tb-title">Les plis</div><div class="tb-sub" id="tr-tbsub"></div></div>
+    <button class="icon-btn" onclick="openRules('bonus')">🏆</button>
+  </div>
+  <div class="rbar" id="tr-bar"></div>
+  <div class="prog"><div class="prog-f" id="tr-prog"></div></div>
+  <span class="phase ph-play" id="tr-phase">⚔️ Plis remportés et bonus</span>
+  <div class="card" id="tr-list"></div>
+  <div style="display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);font-weight:700;padding:0 4px 12px">
+    <span id="tr-sum"></span>
+  </div>
+  <button class="btn btn-gold" onclick="confirmTricks(event)">Calculer les scores →</button>
+</div>
+
+<!-- ══════════ SCORES ══════════ -->
+<div id="sc-scores" class="screen">
+  <div class="topbar">
+    <button class="icon-btn" onclick="openHistory()">🕐</button>
+    <div style="flex:1"><div class="tb-title" id="sc-title">Scores</div><div class="tb-sub" id="sc-tbsub"></div></div>
+    <button class="icon-btn" onclick="openMenu()">⋯</button>
+  </div>
+  <div id="sc-body"></div>
+  <button class="btn btn-gold" id="next-btn" style="margin-top:8px"></button>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="btn btn-line btn-sm" onclick="editRound(state.cur-1)">✏️ Corriger</button>
+    <button class="btn btn-line btn-sm" onclick="openHistory()">📊 Historique</button>
+  </div>
+</div>
+
+<!-- ══════════ END ══════════ -->
+<div id="sc-end" class="screen">
+  <div style="padding-top:calc(var(--safe-t) + 12px)"></div>
+  <div class="win" id="win-box"></div>
+  <div class="card"><div class="clabel">🏁 Classement final</div><div id="final-list"></div></div>
+  <div class="card"><div class="clabel">📈 Statistiques de la partie</div><div class="stat-g" id="stats"></div></div>
+  <div class="card"><div class="clabel">📋 Feuille de score<span class="cl-act" onclick="openHistory()">Détail ›</span></div><div class="tw" id="final-table"></div></div>
+  <button class="btn btn-gold" onclick="newGame()">⚓ Nouvelle partie</button>
+  <button class="btn btn-line" style="margin-top:9px" onclick="rematch()">🔄 Revanche (mêmes joueurs)</button>
+  <button class="btn-ghost" onclick="shareResults()">📤 Partager le résultat</button>
+</div>
+
+<!-- ══════════ SHEETS ══════════ -->
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
+
+<div class="sheet" id="sheet-rules">
+  <div class="sh-grab"></div>
+  <div class="sh-hd"><div class="sh-t">📖 Règles officielles</div><button class="icon-btn" onclick="closeSheet()">✕</button></div>
+  <div id="rules-body"></div>
+</div>
+
+<div class="sheet" id="sheet-hist">
+  <div class="sh-grab"></div>
+  <div class="sh-hd"><div class="sh-t">📊 Historique</div><button class="icon-btn" onclick="closeSheet()">✕</button></div>
+  <div id="hist-body"></div>
+</div>
+
+<div class="sheet" id="sheet-menu">
+  <div class="sh-grab"></div>
+  <div class="sh-hd"><div class="sh-t">⋯ Options</div><button class="icon-btn" onclick="closeSheet()">✕</button></div>
+  <div id="menu-body"></div>
+</div>
+
+</div>
+<script>
+/* ═══════════════ DONNÉES DE JEU (règles officielles) ═══════════════ */
+const MODES={
+  classique:{n:'Classique',i:'🏴‍☠️',d:'10 manches : 1, 2, 3… jusqu\u0027à 10 cartes.',c:[1,2,3,4,5,6,7,8,9,10]},
+  impair:{n:'Pas d\u0027impair',i:'2️⃣',d:'Deux manches de 2, 4, 6, 8 et enfin 10 cartes.',c:[2,2,4,4,6,6,8,8,10,10]},
+  combat:{n:'Prêt au combat',i:'⚔️',d:'Partie en 5 manches : 6, 7, 8, 9 et enfin 10 cartes.',c:[6,7,8,9,10]},
+  eclair:{n:'Attaque éclair',i:'⚡',d:'Cinq manches avec 5 cartes.',c:[5,5,5,5,5]},
+  barrage:{n:'Tir de barrage',i:'💥',d:'Dix manches avec 10 cartes.',c:[10,10,10,10,10,10,10,10,10,10]},
+  tourbillon:{n:'Tourbillon',i:'🌀',d:'Deux manches de 9, 7, 5, 3 et enfin 1 carte.',c:[9,9,7,7,5,5,3,3,1,1]},
+  dodo:{n:'L\u0027heure du dodo',i:'🌙',d:'Une manche avec 1 carte, puis un bisou et bonne nuit !',c:[1]}
+};
+const AV=[
+ {i:'💀',c:'#c8860a'},{i:'🦜',c:'#1a6b3c'},{i:'⚓',c:'#185fa5'},{i:'💎',c:'#8b2a8b'},
+ {i:'🗡️',c:'#9b2020'},{i:'🐚',c:'#0f6e7a'},{i:'🏴',c:'#5a4a8a'},{i:'⚡',c:'#b86a0a'}
+];
+const MEDAL=['🥇','🥈','🥉'];
+const DECK=70; // 56 cartes de couleur + 14 cartes spéciales (base, sans extension)
+
+/* ═══════════════ ÉTAT ═══════════════ */
+let state=null, editing=null, bonusOpen={};
+const K='skullking.v3';
+
+function blank(){
+  return {players:[],mode:'classique',scoring:'sk',cannonball:false,wager:false,loot:false,
+          rounds:[],cur:0,dealer:0,done:false,started:Date.now()};
+}
+function newEntry(){return{bid:0,tricks:0,sk:0,sk14:0,mer:0,b14:0,c14:0,loot:0,wager:0,shot:'chev'}}
+function makeRound(cards,np){return{cards:cards,e:Array.from({length:np},newEntry)}}
+
+function save(){try{localStorage.setItem(K,JSON.stringify(state))}catch(e){}}
+function load(){try{const r=localStorage.getItem(K);return r?JSON.parse(r):null}catch(e){return null}}
+function wipe(){try{localStorage.removeItem(K)}catch(e){}}
+
+/* ═══════════════ CALCUL DES POINTS ═══════════════ */
+function bonusOf(e,st){
+  let b=e.sk*30 + e.sk14*40 + e.mer*20 + e.b14*20 + e.c14*10;
+  if(st.loot) b+=e.loot*20;
+  return b;
+}
+function scoreOf(e,cards,st){
+  const exact = e.tricks===e.bid;
+  const gap = Math.abs(e.bid-e.tricks);
+  const bon = bonusOf(e,st);
+  let base=0, bonus=0, wag=0;
+
+  if(st.scoring==='rascal'){
+    const cannon = st.cannonball && e.shot==='boul';
+    if(cannon){ base = exact ? 15*cards : 0; bonus = exact ? bon : 0; }
+    else if(exact){ base = 10*cards; bonus = bon; }
+    else if(gap===1){ base = 5*cards; bonus = Math.round(bon/2); }
+    else { base = 0; bonus = 0; }
+  } else {
+    if(e.bid===0){ base = exact ? 10*cards : -10*cards; bonus = exact ? bon : 0; }
+    else if(exact){ base = 20*e.bid; bonus = bon; }
+    else { base = -10*gap; bonus = 0; }
+  }
+  if(st.wager && e.wager>0) wag = exact ? e.wager : -e.wager;
+  return {base,bonus,wager:wag,pts:base+bonus+wag,exact,gap,rawBonus:bon};
+}
+function totals(upto){
+  const n=state.players.length, t=Array(n).fill(0);
+  const lim = upto===undefined ? state.rounds.length : upto;
+  for(let r=0;r<lim && r<state.rounds.length;r++){
+    const R=state.rounds[r];
+    for(let i=0;i<n;i++) t[i]+=scoreOf(R.e[i],R.cards,state).pts;
+  }
+  return t;
+}
+function playedCount(){
+  // manches déjà validées (jusqu'à cur exclus si on est en cours)
+  return state.done ? state.rounds.length : state.cur;
+}
+function suggestedCards(idx){
+  const base=MODES[state.mode].c[idx];
+  const cap=Math.floor(DECK/Math.max(1,state.players.length));
+  return Math.min(base,cap);
+}
+
+/* ═══════════════ UTILITAIRES UI ═══════════════ */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms||8)}catch(e){}}
+function av(i,cls){
+  const a=AV[i%8];
+  return `<div class="pav ${cls||''}" style="background:${a.c}1f;border-color:${a.c}55">${a.i}</div>`;
+}
+function avDealer(i,cls,isD){
+  const a=AV[i%8];
+  return `<div class="pav ${cls||''}" style="background:${a.c}1f;border-color:${a.c}55">${a.i}${isD?'<span class="dealer-dot">D</span>':''}</div>`;
+}
+function ripple(el,ev){
+  const r=document.createElement('div'); r.className='ripple';
+  const b=el.getBoundingClientRect();
+  const x=(ev&&ev.clientX)||b.left+b.width/2, y=(ev&&ev.clientY)||b.top+b.height/2;
+  r.style.left=(x-b.left)+'px'; r.style.top=(y-b.top)+'px';
+  el.appendChild(r); setTimeout(()=>r.remove(),650);
+}
+function toast(msg,ms){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),ms||2200);
+}
+function goto(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  window.scrollTo({top:0,behavior:'instant'});
+}
+function openSheet(id){
+  document.getElementById('scrim').classList.add('on');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.body.style.overflow='hidden';
+}
+function closeSheet(){
+  document.getElementById('scrim').classList.remove('on');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on'));
+  document.body.style.overflow='';
+}
+
+/* ═══════════════ SETUP ═══════════════ */
+function renderPlayers(){
+  const d=document.getElementById('plist'); d.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const row=document.createElement('div'); row.className='prow';
+    row.innerHTML=`${av(i)}<input type="text" maxlength="16" placeholder="Matelot ${i+1}" value="${esc(p)}" oninput="state.players[${i}]=this.value.replace(/[<>]/g,'')">`
+      +(state.players.length>2?`<button class="rm" onclick="delPlayer(${i})" aria-label="Retirer">✕</button>`:'');
+    d.appendChild(row);
+  });
+  document.getElementById('pcount').textContent=state.players.length+'/8';
+}
+function addPlayer(){
+  if(state.players.length>=8){toast('Maximum 8 joueurs');return}
+  state.players.push(''); renderPlayers(); buzz();
+  const inp=document.querySelectorAll('#plist input'); inp[inp.length-1].focus();
+  renderModes();
+}
+function delPlayer(i){
+  if(state.players.length<=2){toast('Minimum 2 joueurs');return}
+  state.players.splice(i,1); renderPlayers(); renderModes(); buzz();
+}
+function renderModes(){
+  const d=document.getElementById('modes'); d.innerHTML='';
+  const cap=Math.floor(DECK/Math.max(1,state.players.length));
+  Object.keys(MODES).forEach(k=>{
+    const m=MODES[k], on=state.mode===k;
+    const cards=m.c.map(c=>Math.min(c,cap));
+    const capped=m.c.some((c,i)=>cards[i]<c);
+    d.innerHTML+=`<div class="opt ${on?'on':''}" onclick="setMode('${k}')">
+      <span class="opt-icon">${m.i}</span>
+      <div class="opt-body"><div class="opt-t">${m.n}</div>
+      <div class="opt-d">${m.c.length} manche${m.c.length>1?'s':''} · ${cards.join(' · ')} carte${cards[0]>1?'s':''}${capped?' <b style="color:var(--gold)">(ajusté au nb de joueurs)</b>':''}</div></div>
+      <div class="opt-chk">✓</div></div>`;
+  });
+  document.getElementById('mode-desc').textContent=MODES[state.mode].d;
+}
+function setMode(k){state.mode=k;renderModes();buzz()}
+function setScoring(s){
+  state.scoring=s;
+  document.getElementById('sg-sk').classList.toggle('on',s==='sk');
+  document.getElementById('sg-rascal').classList.toggle('on',s==='rascal');
+  document.getElementById('rascal-opts').style.display=s==='rascal'?'block':'none';
+  document.getElementById('scoring-desc').innerHTML = s==='sk'
+    ? 'Système classique, taillé pour les audacieux. Vous ne gagnez des points que si votre mise est exacte — sinon vous en perdez.'
+    : 'Système équilibré : chaque manche vaut 10 points par carte distribuée pour tout le monde. Mise exacte = tous les points, écart de 1 = la moitié, écart de 2 ou plus = rien.';
+  buzz();
+}
+function toggleOpt(key,btn){state[key]=!state[key];btn.classList.toggle('on',state[key]);buzz()}
+function toggleDark(btn){
+  const on=!document.body.classList.contains('dark');
+  document.body.classList.toggle('dark',on);
+  btn.classList.toggle('on',on);
+  try{localStorage.setItem('sk.dark',on?'1':'0')}catch(e){}
+  document.querySelector('meta[name=theme-color]').setAttribute('content',on?'#0d1824':'#0a1520');
+  buzz();
+}
+function renderResume(){
+  const saved=load(); const box=document.getElementById('resume-box');
+  if(!saved||!saved.rounds||!saved.rounds.length||saved.done){box.innerHTML='';return}
+  const t=saved.rounds.length, m=MODES[saved.mode];
+  box.innerHTML=`<div class="card" style="border-color:var(--gold);box-shadow:0 0 0 3px var(--glow)">
+    <div class="clabel">⏳ Partie en cours</div>
+    <div style="font-size:13.5px;font-weight:700;margin-bottom:3px">${saved.players.map(esc).join(' · ')}</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:12px">${m.i} ${m.n} — manche ${Math.min(saved.cur+1,t)} sur ${t}</div>
+    <div class="btn-row">
+      <button class="btn btn-gold btn-sm" onclick="resumeGame()">Reprendre</button>
+      <button class="btn btn-line btn-sm" onclick="wipe();renderResume();toast('Partie effacée')">Abandonner</button>
+    </div></div>`;
+}
+function resumeGame(){
+  state=load(); bonusOpen={};
+  if(state.done) showEnd(); else if(state.rounds[state.cur]) renderBid(); else renderScores();
+  toast('Partie reprise ⚓');
+}
+function startGame(ev){
+  ripple(ev.currentTarget,ev); buzz(14);
+  state.players=state.players.map((p,i)=>(p||'').trim().slice(0,16)||`Matelot ${i+1}`);
+  const cap=Math.floor(DECK/state.players.length);
+  state.rounds=MODES[state.mode].c.map(c=>makeRound(Math.min(c,cap),state.players.length));
+  state.cur=0; state.dealer=0; state.done=false; state.started=Date.now();
+  bonusOpen={}; save();
+  setTimeout(renderBid,130);
+}
+
+/* ═══════════════ BARRES DE MANCHE ═══════════════ */
+function roundBar(id,idx){
+  const R=state.rounds[idx], n=state.rounds.length, m=MODES[state.mode];
+  const ed = editing!==null;
+  document.getElementById(id).innerHTML=
+   `<div class="rb-l">
+      <div class="rb-lbl">${ed?'Correction — manche':'Manche'}</div>
+      <div class="rb-cards">${R.cards} carte${R.cards>1?'s':''} par joueur</div>
+      <span class="rb-chip">${m.i} ${m.n}${state.scoring==='rascal'?' · 🎩 Rascal':''}</span>
+    </div>
+    <div class="rb-r"><div class="rb-num">${idx+1}<small> / ${n}</small></div></div>`;
+}
+function progress(id,idx){
+  document.getElementById(id).style.width=((idx+1)/state.rounds.length*100)+'%';
+}
+function renderDots(id,idx){
+  const d=document.getElementById(id); if(!d)return;
+  d.innerHTML=state.rounds.map((r,i)=>
+    `<div class="dot ${i<state.cur?'done':i===idx?'cur':''}" onclick="${i<state.cur?`editRound(${i})`:''}" title="Manche ${i+1}"></div>`).join('');
+}
+
+/* ═══════════════ ÉCRAN MISES ═══════════════ */
+function renderBid(){
+  const idx = editing!==null ? editing : state.cur;
+  const R=state.rounds[idx];
+  roundBar('bid-bar',idx); progress('bid-prog',idx); renderDots('bid-dots',idx);
+  document.getElementById('bid-tbsub').textContent = editing!==null ? `Correction de la manche ${idx+1}` : `Manche ${idx+1} sur ${state.rounds.length}`;
+  const ph=document.getElementById('bid-phase');
+  ph.className='phase '+(editing!==null?'ph-edit':'ph-bid');
+  ph.innerHTML = editing!==null ? '✏️ Correction des mises' : '🤜 Combien de plis vas-tu remporter ?';
+  const nt=document.getElementById('bid-note');
+  nt.style.display = editing!==null?'none':'block';
+  nt.innerHTML = state.players.length===2
+    ? "👻 <b>Partie à deux :</b> distribuez trois paquets — le troisième est celui de Barbe Grise. Il ne mise pas et ne marque pas de points, mais il peut remporter des plis."
+    : "Poing fermé = mise de <b>0</b>. Frappez trois fois la table et criez « <b>Yo-ho-ho !</b> » — au troisième coup, tout le monde révèle sa mise en même temps.";
+
+  const t=totals(idx);
+  const d=document.getElementById('bid-list'); d.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const e=R.e[i], isD=(state.dealer+idx)%state.players.length===i;
+    const quick=Array.from({length:Math.min(R.cards,6)+1},(_,k)=>k);
+    const el=document.createElement('div');
+    el.innerHTML=`<div class="plr">
+      ${avDealer(i,'',isD)}
+      <div class="plr-b"><div class="plr-n">${esc(p)}</div>
+        <div class="plr-s">${isD?'🎴 Donneur · ':''}Score <b>${t[i]}</b></div></div>
+      <div class="step">
+        <button class="step-b" onclick="stepBid(${i},-1,this)">−</button>
+        <div class="step-v" id="bv${i}">${e.bid}</div>
+        <button class="step-b" onclick="stepBid(${i},1,this)">＋</button>
+      </div></div>
+      <div class="qbid" id="qb${i}">${quick.map(k=>`<button class="qb ${e.bid===k?'on':''}" onclick="setBid(${i},${k})">${k}</button>`).join('')}${R.cards>6?`<button class="qb ${e.bid>6?'on':''}" onclick="toast('Utilise les boutons + et −')">7+</button>`:''}</div>
+      ${state.wager?wagerRow(i,e):''}
+      ${(state.scoring==='rascal'&&state.cannonball)?shotRow(i,e):''}
+      <div class="sep"></div>`;
+    d.appendChild(el);
+  });
+  updateBidSum();
+  goto('sc-bid');
+}
+function wagerRow(i,e){
+  return `<div class="mini-seg" id="wg${i}">
+    <div class="ms ${e.wager===0?'on':''}" onclick="setWager(${i},0)">Pas de pari</div>
+    <div class="ms ${e.wager===10?'on':''}" onclick="setWager(${i},10)">🎲 Parier 10</div>
+    <div class="ms ${e.wager===20?'on':''}" onclick="setWager(${i},20)">🎲 Parier 20</div></div>`;
+}
+function shotRow(i,e){
+  return `<div class="mini-seg" id="sh${i}">
+    <div class="ms ${e.shot==='chev'?'on':''}" onclick="setShot(${i},'chev')">🖐️ Chevrotine ×10</div>
+    <div class="ms ${e.shot==='boul'?'on':''}" onclick="setShot(${i},'boul')">✊ Boulet ×15</div></div>`;
+}
+function curRound(){return state.rounds[editing!==null?editing:state.cur]}
+function stepBid(i,d,btn){
+  const R=curRound(), e=R.e[i];
+  e.bid=Math.max(0,Math.min(R.cards,e.bid+d));
+  const v=document.getElementById('bv'+i); v.textContent=e.bid;
+  v.classList.remove('tick'); void v.offsetWidth; v.classList.add('tick');
+  refreshQuick(i); updateBidSum(); buzz(); if(btn)ripple(btn);
+}
+function setBid(i,val){
+  const R=curRound(), e=R.e[i];
+  e.bid=Math.max(0,Math.min(R.cards,val));
+  const v=document.getElementById('bv'+i); v.textContent=e.bid;
+  v.classList.remove('tick'); void v.offsetWidth; v.classList.add('tick');
+  refreshQuick(i); updateBidSum(); buzz();
+}
+function refreshQuick(i){
+  const R=curRound(), e=R.e[i], q=document.getElementById('qb'+i); if(!q)return;
+  [...q.children].forEach(b=>{
+    const n=parseInt(b.textContent);
+    b.classList.toggle('on', !isNaN(n) ? n===e.bid : e.bid>6);
+  });
+}
+function setWager(i,v){curRound().e[i].wager=v;const w=document.getElementById('wg'+i);[...w.children].forEach((c,k)=>c.classList.toggle('on',[0,10,20][k]===v));buzz()}
+function setShot(i,s){curRound().e[i].shot=s;const w=document.getElementById('sh'+i);[...w.children].forEach((c,k)=>c.classList.toggle('on',['chev','boul'][k]===s));buzz()}
+function updateBidSum(){
+  const R=curRound(), sum=R.e.reduce((a,e)=>a+e.bid,0);
+  const diff=sum-R.cards;
+  const txt = diff===0 ? `Total misé : ${sum} / ${R.cards} — pile poil` :
+              diff>0 ? `Total misé : ${sum} / ${R.cards} — surmisé de ${diff}` :
+                       `Total misé : ${sum} / ${R.cards} — sous-misé de ${-diff}`;
+  document.getElementById('bid-sum').textContent=txt;
+  const idx=editing!==null?editing:state.cur;
+  document.getElementById('bid-dealer').textContent='🎴 '+state.players[(state.dealer+idx)%state.players.length];
+}
+function bidBack(){
+  if(editing!==null){editing=null;renderScores();return}
+  if(state.cur>0){renderScores();return}
+  if(confirm('Retourner à la configuration ? La partie en cours sera perdue.')){wipe();resetSetup()}
+}
+function confirmBids(ev){ripple(ev.currentTarget,ev);buzz(14);save();setTimeout(renderTricks,110)}
+
+/* ═══════════════ ÉCRAN PLIS ═══════════════ */
+function renderTricks(){
+  const idx = editing!==null ? editing : state.cur;
+  const R=state.rounds[idx];
+  roundBar('tr-bar',idx); progress('tr-prog',idx);
+  document.getElementById('tr-tbsub').textContent = editing!==null ? `Correction de la manche ${idx+1}` : `Manche ${idx+1} sur ${state.rounds.length}`;
+  const ph=document.getElementById('tr-phase');
+  ph.className='phase '+(editing!==null?'ph-edit':'ph-play');
+  ph.innerHTML = editing!==null ? '✏️ Correction des résultats' : '⚔️ Plis remportés et bonus';
+
+  const d=document.getElementById('tr-list'); d.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const e=R.e[i];
+    const nb=e.sk+e.sk14+e.mer+e.b14+e.c14+(state.loot?e.loot:0);
+    const open = bonusOpen[i] || nb>0;
+    const el=document.createElement('div');
+    el.innerHTML=`<div class="plr" style="border-bottom:none;padding-bottom:2px">
+      ${av(i)}
+      <div class="plr-b"><div class="plr-n">${esc(p)}</div>
+        <div class="plr-s">Mise : <b>${e.bid} pli${e.bid!==1?'s':''}</b>${state.wager&&e.wager?` · 🎲 ${e.wager}`:''}${state.scoring==='rascal'&&state.cannonball?` · ${e.shot==='boul'?'✊':'🖐️'}`:''}</div></div>
+      <div class="step">
+        <button class="step-b" onclick="stepTrick(${i},-1,this)">−</button>
+        <div class="step-v" id="tv${i}">${e.tricks}</div>
+        <button class="step-b" onclick="stepTrick(${i},1,this)">＋</button>
+      </div></div>
+      <div class="bsec">
+        <div class="bhead" onclick="toggleBonus(${i})">
+          🏆 Bonus capturés
+          <span class="bcount ${nb?'':'zero'}" id="bc${i}">${nb?('+'+bonusOf(e,state)):'0'}</span>
+          <span style="color:var(--muted)" id="ba${i}">${open?'▲':'▼'}</span>
+        </div>
+        <div class="bgrid ${open?'':'hide'}" id="bg${i}">
+          ${bchip(i,'sk','💀','Pirates capturés par Skull King','30 pts chacun',e.sk)}
+          ${bchip(i,'sk14','🧜‍♀️','Skull King capturé par une sirène','40 pts',e.sk14)}
+          ${bchip(i,'mer','🏴‍☠️','Sirènes capturées par un pirate','20 pts chacune',e.mer)}
+          ${bchip(i,'b14','🖤','Carte 14 noire (Drapeau pirate)','20 pts',e.b14)}
+          ${bchip(i,'c14','🎨','Cartes 14 de couleur','10 pts chacune',e.c14)}
+          ${state.loot?bchip(i,'loot','💰','Alliances Butin réussies','20 pts chacune',e.loot):''}
+        </div>
+      </div><div class="sep"></div>`;
+    d.appendChild(el);
+  });
+  updateTrickSum();
+  goto('sc-tricks');
+}
+function bchip(i,k,ic,t,p,v){
+  return `<div class="bchip ${v>0?'on':''}" id="bx${k}${i}">
+    <span class="bi">${ic}</span>
+    <div class="bd"><div class="bt">${t}</div><div class="bp">${p}</div></div>
+    <div class="bstep">
+      <button class="bb" onclick="stepBonus(${i},'${k}',-1)">−</button>
+      <span class="bv" id="b${k}${i}">${v}</span>
+      <button class="bb" onclick="stepBonus(${i},'${k}',1)">＋</button>
+    </div></div>`;
+}
+function toggleBonus(i){
+  const g=document.getElementById('bg'+i), a=document.getElementById('ba'+i);
+  const hidden=g.classList.toggle('hide');
+  a.textContent=hidden?'▼':'▲'; bonusOpen[i]=!hidden; buzz();
+}
+function stepTrick(i,d,btn){
+  const R=curRound(), e=R.e[i];
+  e.tricks=Math.max(0,Math.min(R.cards,e.tricks+d));
+  const v=document.getElementById('tv'+i); v.textContent=e.tricks;
+  v.classList.remove('tick'); void v.offsetWidth; v.classList.add('tick');
+  updateTrickSum(); buzz(); if(btn)ripple(btn);
+}
+function stepBonus(i,k,d){
+  const R=curRound(), e=R.e[i];
+  const mx = (k==='sk14'||k==='b14') ? 1 : (k==='mer'?2:(k==='sk'?5:(k==='c14'?3:4)));
+  e[k]=Math.max(0,Math.min(mx,e[k]+d));
+  document.getElementById('b'+k+i).textContent=e[k];
+  document.getElementById('bx'+k+i).classList.toggle('on',e[k]>0);
+  const nb=e.sk+e.sk14+e.mer+e.b14+e.c14+(state.loot?e.loot:0);
+  const c=document.getElementById('bc'+i);
+  c.textContent=nb?('+'+bonusOf(e,state)):'0'; c.classList.toggle('zero',!nb);
+  buzz();
+}
+function ghostMode(){return state.players.length===2}
+function updateTrickSum(){
+  const R=curRound(), sum=R.e.reduce((a,e)=>a+e.tricks,0);
+  const el=document.getElementById('tr-sum');
+  if(ghostMode()){
+    if(sum<=R.cards){el.innerHTML=`✅ ${sum} pli${sum!==1?'s':''} sur ${R.cards} — 👻 ${R.cards-sum} pour Barbe Grise`;el.style.color=sum===R.cards?'var(--ok)':'var(--muted)'}
+    else{el.innerHTML=`⚠️ ${sum} plis saisis — il n'y en a que ${R.cards}`;el.style.color='var(--ko)'}
+  }
+  else if(sum===R.cards){el.innerHTML=`✅ ${sum} pli${sum!==1?'s':''} répartis sur ${R.cards}`;el.style.color='var(--ok)'}
+  else{el.innerHTML=`⚠️ ${sum} pli${sum!==1?'s':''} saisi${sum!==1?'s':''} — il doit y en avoir exactement ${R.cards}`;el.style.color='var(--ko)'}
+}
+function confirmTricks(ev){
+  const R=curRound(), sum=R.e.reduce((a,e)=>a+e.tricks,0);
+  const bad = ghostMode() ? sum>R.cards : sum!==R.cards;
+  if(bad){
+    toast(ghostMode()?`Il n'y a que ${R.cards} pli${R.cards>1?'s':''} dans cette manche`:`Il doit y avoir exactement ${R.cards} pli${R.cards>1?'s':''} au total`);
+    const el=document.getElementById('tr-sum'); el.style.animation='none'; void el.offsetWidth; el.style.animation='shake .4s ease';
+    buzz([30,40,30]); return;
+  }
+  ripple(ev.currentTarget,ev); buzz(16);
+  if(editing!==null){const i=editing; editing=null; save(); toast(`Manche ${i+1} corrigée ✓`); setTimeout(renderScores,110); return;}
+  state.cur++; save();
+  setTimeout(()=>renderScores(true),110);
+}
+
+/* ═══════════════ ÉCRAN SCORES ═══════════════ */
+function renderScores(animate){
+  const last = Math.min(state.cur,state.rounds.length)-1;
+  const R = last>=0 ? state.rounds[last] : null;
+  const t = totals();
+  const prev = last>0 ? totals(last) : state.players.map(()=>0);
+  const n=state.rounds.length;
+
+  document.getElementById('sc-title').textContent = last>=0?`Après la manche ${last+1}`:'Scores';
+  document.getElementById('sc-tbsub').textContent = `${MODES[state.mode].i} ${MODES[state.mode].n} · ${state.scoring==='rascal'?'Rascal':'Skull King'}`;
+
+  const rows = state.players.map((p,i)=>({p,i,sc:t[i],dl:t[i]-prev[i]})).sort((a,b)=>b.sc-a.sc);
+  let h=`<div class="rbar" style="margin-bottom:12px">
+    <div class="rb-l"><div class="rb-lbl">Progression</div>
+    <div class="rb-cards">${state.cur} manche${state.cur>1?'s':''} jouée${state.cur>1?'s':''} sur ${n}</div></div>
+    <div class="rb-r"><div class="rb-num">${Math.round(state.cur/n*100)}<small>%</small></div></div></div>`;
+
+  h+=`<div class="card"><div class="sh">
+      <div style="width:26px">#</div><div style="flex:1;padding-left:8px">Joueur</div>
+      <div style="width:54px;text-align:right">Manche</div><div style="width:58px;text-align:right">Total</div></div>`;
+  rows.forEach((r,k)=>{
+    const R2 = last>=0?scoreOf(state.rounds[last].e[r.i],state.rounds[last].cards,state):null;
+    const cls = animate&&R2 ? (R2.exact?'hit':'miss') : '';
+    h+=`<div class="sr ${k===0?'lead':''} ${cls}">
+      <div class="s-rk">${k===0?'👑':k+1}</div>
+      <div class="s-nm">${av(r.i,'sm')}<span>${esc(r.p)}</span></div>
+      <div class="s-dl ${r.dl>=0?'p':'n'}">${r.dl>=0?'+':''}${r.dl}</div>
+      <div class="s-tt">${r.sc}</div></div>`;
+  });
+  h+='</div>';
+
+  if(R){
+    h+=`<div class="card"><div class="clabel">📜 Détail de la manche ${last+1}<span class="cl-act" onclick="editRound(${last})">Corriger ›</span></div>`;
+    state.players.forEach((p,i)=>{
+      const e=R.e[i], s=scoreOf(e,R.cards,state);
+      h+=`<div class="rec"><div class="rec-h">${av(i,'xs')}
+        <span class="rec-n">${esc(p)}</span>
+        <span class="rec-p ${s.pts>=0?'p':'n'}">${s.pts>=0?'+':''}${s.pts}</span></div>
+        <div class="pills">
+          <span class="pill ${s.exact?'ok':'ko'}">Misé ${e.bid} · Fait ${e.tricks}${s.exact?' ✓':(s.gap===1&&state.scoring==='rascal'?' ~':' ✕')}</span>
+          ${s.bonus>0?`<span class="pill bon">Bonus +${s.bonus}</span>`:(s.rawBonus>0?`<span class="pill">Bonus perdu −${s.rawBonus}</span>`:'')}
+          ${e.sk?`<span class="pill">💀×${e.sk}</span>`:''}
+          ${e.sk14?`<span class="pill">🧜‍♀️ Skull King</span>`:''}
+          ${e.mer?`<span class="pill">🏴‍☠️×${e.mer}</span>`:''}
+          ${e.b14?`<span class="pill">🖤 14</span>`:''}
+          ${e.c14?`<span class="pill">🎨14×${e.c14}</span>`:''}
+          ${state.loot&&e.loot?`<span class="pill">💰×${e.loot}</span>`:''}
+          ${state.wager&&e.wager?`<span class="pill ${s.wager>=0?'ok':'ko'}">🎲 ${s.wager>=0?'+':''}${s.wager}</span>`:''}
+          ${state.scoring==='rascal'&&state.cannonball?`<span class="pill">${e.shot==='boul'?'✊ Boulet':'🖐️ Chevrotine'}</span>`:''}
+        </div></div>`;
+    });
+    h+='</div>';
+  }
+
+  h+=`<div class="card"><div class="clabel">📋 Feuille de score</div><div class="tw">${scoreTable()}</div></div>`;
+  document.getElementById('sc-body').innerHTML=h;
+
+  const nb=document.getElementById('next-btn');
+  if(state.cur>=n){nb.innerHTML='👑 Voir le classement final →';nb.onclick=(e)=>{ripple(nb,e);setTimeout(showEnd,120)}}
+  else{nb.innerHTML=`Manche ${state.cur+1} — ${state.rounds[state.cur].cards} carte${state.rounds[state.cur].cards>1?'s':''} →`;nb.onclick=(e)=>{ripple(nb,e);buzz(12);setTimeout(renderBid,120)}}
+
+  goto('sc-scores');
+  if(animate&&R) rows.forEach((r,k)=>setTimeout(()=>flyPts(r.dl,k),180+k*90));
+  save();
+}
+function flyPts(pts,idx){
+  const el=document.createElement('div');
+  el.className='fly '+(pts>=0?'p':'n');
+  el.textContent=(pts>=0?'+':'')+pts;
+  el.style.top=(230+idx*54)+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1150);
+}
+function scoreTable(){
+  const t=state.players.map(()=>0);
+  let h='<table class="tbl"><thead><tr><th class="nm">Joueur</th>';
+  for(let r=0;r<state.cur;r++)h+=`<th>M${r+1}<br><span style="opacity:.5;font-weight:600">${state.rounds[r].cards}c</span></th>`;
+  h+='<th class="tot">Total</th></tr></thead><tbody>';
+  state.players.forEach((p,i)=>{
+    h+=`<tr><td class="nm">${av(i,'xs')}</td>`;
+    let c=0;
+    for(let r=0;r<state.cur;r++){
+      const s=scoreOf(state.rounds[r].e[i],state.rounds[r].cards,state);
+      c+=s.pts;
+      h+=`<td class="${s.pts>=0?'pos':'neg'}">${s.pts>=0?'+':''}${s.pts}</td>`;
+    }
+    h+=`<td class="tot">${c}</td></tr>`;
+  });
+  h+='</tbody></table>';
+  return h;
+}
+
+/* ═══════════════ ÉDITION D'UNE MANCHE ═══════════════ */
+function editRound(i){
+  if(i<0||i>=state.rounds.length){toast('Aucune manche à corriger');return}
+  if(i>=state.cur&&!state.done){toast('Cette manche n\u0027a pas encore été jouée');return}
+  closeSheet(); editing=i; bonusOpen={}; buzz(12);
+  toast(`Correction de la manche ${i+1}`);
+  setTimeout(renderBid,120);
+}
+
+/* ═══════════════ HISTORIQUE ═══════════════ */
+function openHistory(){
+  const n=state.done?state.rounds.length:state.cur;
+  let h='';
+  if(!n){h=`<div class="empty"><div class="empty-i">🗒️</div><div class="empty-t">Aucune manche jouée pour l\u0027instant</div></div>`}
+  else{
+    h+=`<div class="card"><div class="clabel">📋 Feuille de score complète</div><div class="tw">${scoreTable()}</div></div>`;
+    h+=`<div class="card"><div class="clabel">✏️ Corriger une manche</div>`;
+    for(let r=n-1;r>=0;r--){
+      const R=state.rounds[r];
+      const sum=state.players.map((p,i)=>{
+        const s=scoreOf(R.e[i],R.cards,state);
+        return `${p.split(' ')[0]} ${s.pts>=0?'+':''}${s.pts}`;
+      }).join(' · ');
+      h+=`<div class="hrow" onclick="editRound(${r})">
+        <div class="hr-badge"><b>${r+1}</b><i>${R.cards} c.</i></div>
+        <div class="hr-b"><div class="hr-t">Manche ${r+1}</div><div class="hr-s">${esc(sum)}</div></div>
+        <div class="hr-go">›</div></div>`;
+    }
+    h+='</div>';
+  }
+  document.getElementById('hist-body').innerHTML=h;
+  openSheet('sheet-hist');
+}
+
+/* ═══════════════ MENU ═══════════════ */
+function openMenu(){
+  const h=`<div class="card">
+    <div class="clabel">Partie en cours</div>
+    <div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Type</div>
+      <div class="tgl-d">${MODES[state.mode].i} ${MODES[state.mode].n} — ${MODES[state.mode].d}</div></div></div>
+    <div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Décompte</div>
+      <div class="tgl-d">${state.scoring==='rascal'?'🎩 Les scores selon Rascal':'💀 Les scores selon Skull King'}${state.cannonball?' · Boulet de canon activé':''}</div></div></div>
+    <div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Joueurs</div>
+      <div class="tgl-d">${state.players.map(esc).join(' · ')}</div></div></div>
+    <div class="tgl-row">
+      <div class="tgl-body"><div class="tgl-t">🌙 Thème sombre</div><div class="tgl-d">Confort de lecture en soirée</div></div>
+      <button class="tgl ${document.body.classList.contains('dark')?'on':''}" onclick="toggleDark(this)"></button>
+    </div>
+  </div>
+  <button class="btn btn-line" onclick="closeSheet();openRules()">📖 Règles officielles</button>
+  <button class="btn btn-line" style="margin-top:9px" onclick="closeSheet();openHistory()">📊 Historique et corrections</button>
+  <button class="btn btn-line" style="margin-top:9px" onclick="shareResults()">📤 Partager les scores</button>
+  <button class="btn btn-line" style="margin-top:9px;color:var(--ko);border-color:var(--ko)" onclick="abandon()">🗑️ Abandonner la partie</button>`;
+  document.getElementById('menu-body').innerHTML=h;
+  openSheet('sheet-menu');
+}
+function abandon(){
+  if(confirm('Abandonner la partie en cours ? Les scores seront perdus.')){
+    wipe(); closeSheet(); resetSetup(); toast('Partie abandonnée');
+  }
+}
+
+/* ═══════════════ FIN DE PARTIE ═══════════════ */
+function showEnd(){
+  state.done=true; save();
+  const t=totals();
+  const rows=state.players.map((p,i)=>({p,i,sc:t[i]})).sort((a,b)=>b.sc-a.sc);
+  const w=rows[0], tie=rows.filter(r=>r.sc===w.sc);
+  const max=Math.max(...rows.map(r=>Math.abs(r.sc)),1);
+
+  document.getElementById('win-box').innerHTML=`
+    <div class="conf" id="conf"></div>
+    <span class="win-skull">💀</span>
+    <span class="win-crown">👑</span>
+    <div class="win-nm">${tie.length>1?tie.map(x=>esc(x.p)).join(' & '):esc(w.p)}</div>
+    <div class="win-pt">${w.sc} points</div>
+    <div class="win-sb">${tie.length>1?'Égalité — rejouez une manche !':'Capitaine des Sept Mers'}</div>`;
+
+  document.getElementById('final-list').innerHTML=rows.map((r,k)=>
+    `<div class="fr"><div class="f-md">${MEDAL[k]||k+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:9px">${av(r.i,'sm')}<span class="f-nm">${esc(r.p)}</span></div>
+        <div class="f-bar"><i style="width:${Math.max(3,Math.abs(r.sc)/max*100)}%;background:${r.sc>=0?'var(--gold)':'var(--ko)'}"></i></div>
+      </div>
+      <div class="f-sc">${r.sc}</div></div>`).join('');
+
+  // statistiques
+  let bestR={v:-1e9},worstR={v:1e9},exact=0,zeros=0,tot=0;
+  state.rounds.forEach((R,r)=>state.players.forEach((p,i)=>{
+    const s=scoreOf(R.e[i],R.cards,state); tot++;
+    if(s.exact)exact++;
+    if(R.e[i].bid===0&&s.exact)zeros++;
+    if(s.pts>bestR.v)bestR={v:s.pts,p,r:r+1};
+    if(s.pts<worstR.v)worstR={v:s.pts,p,r:r+1};
+  }));
+  const mins=Math.round((Date.now()-(state.started||Date.now()))/60000);
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-v">${Math.round(exact/Math.max(1,tot)*100)}%</div><div class="stat-l">Mises exactes</div></div>
+    <div class="stat"><div class="stat-v">${zeros}</div><div class="stat-l">Mises à zéro réussies</div></div>
+    <div class="stat"><div class="stat-v">${bestR.v>=0?'+':''}${bestR.v}</div><div class="stat-l">Meilleure manche · ${esc((bestR.p||'').split(' ')[0])}</div></div>
+    <div class="stat"><div class="stat-v">${worstR.v}</div><div class="stat-l">Pire manche · ${esc((worstR.p||'').split(' ')[0])}</div></div>
+    <div class="stat"><div class="stat-v">${state.rounds.length}</div><div class="stat-l">Manches jouées</div></div>
+    <div class="stat"><div class="stat-v">${mins>0?mins+' min':'—'}</div><div class="stat-l">Durée</div></div>`;
+
+  document.getElementById('final-table').innerHTML=scoreTable();
+  goto('sc-end');
+  setTimeout(confetti,350);
+}
+function confetti(){
+  const l=document.getElementById('conf'); if(!l)return;
+  const cols=['#f0c040','#c8860a','#ffffff','#3ddc84','#ff6b6b','#6aa9ff','#c96aff'];
+  for(let k=0;k<34;k++){
+    const s=document.createElement('div');
+    const c=cols[k%cols.length], sz=5+Math.random()*6;
+    s.style.cssText=`position:absolute;width:${sz}px;height:${sz*(Math.random()>.5?1:1.8)}px;`+
+      `border-radius:${k%3===0?'50%':'2px'};background:${c};left:${Math.random()*100}%;top:-12px;`+
+      `opacity:0;animation:confetti ${1+Math.random()*1.1}s cubic-bezier(.3,.6,.5,1) ${Math.random()*.7}s forwards`;
+    l.appendChild(s);
+  }
+}
+function shareResults(){
+  const t=totals();
+  const rows=state.players.map((p,i)=>({p,sc:t[i]})).sort((a,b)=>b.sc-a.sc);
+  const txt=`💀 SKULL KING — ${MODES[state.mode].n}\n\n`+
+    rows.map((r,k)=>`${MEDAL[k]||(k+1)+'.'} ${r.p} — ${r.sc} pts`).join('\n')+
+    `\n\n${state.cur} manche${state.cur>1?'s':''} · ${state.scoring==='rascal'?'Décompte Rascal':'Décompte Skull King'}`;
+  if(navigator.share){navigator.share({title:'Skull King',text:txt}).catch(()=>{})}
+  else if(navigator.clipboard){navigator.clipboard.writeText(txt).then(()=>toast('Scores copiés ✓')).catch(()=>toast('Copie impossible'))}
+  else toast('Partage indisponible');
+  closeSheet();
+}
+function rematch(){
+  const p=state.players.slice(), m=state.mode, s=state.scoring;
+  const o={cannonball:state.cannonball,wager:state.wager,loot:state.loot};
+  state=blank(); state.players=p; state.mode=m; state.scoring=s;
+  Object.assign(state,o);
+  const cap=Math.floor(DECK/p.length);
+  state.rounds=MODES[m].c.map(c=>makeRound(Math.min(c,cap),p.length));
+  state.cur=0; state.dealer=(state.dealer+1)%p.length; state.started=Date.now();
+  bonusOpen={}; save(); toast('Revanche ! ⚔️'); renderBid();
+}
+function newGame(){
+  const p=state.players.slice(); wipe();
+  state=blank(); state.players=p.length>=2?p:['','',''];
+  resetSetup();
+}
+function resetSetup(){
+  editing=null; bonusOpen={};
+  renderPlayers(); renderModes(); setScoring(state.scoring);
+  document.getElementById('tg-cannon').classList.toggle('on',state.cannonball);
+  document.getElementById('tg-wager').classList.toggle('on',state.wager);
+  document.getElementById('tg-loot').classList.toggle('on',state.loot);
+  renderResume(); goto('sc-setup');
+}
+
+/* ═══════════════ RÈGLES ═══════════════ */
+function openRules(anchor){
+  document.getElementById('rules-body').innerHTML=RULES;
+  openSheet('sheet-rules');
+  if(anchor){setTimeout(()=>{const el=document.getElementById('r-'+anchor);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},220)}
+}
+const RULES=`
+<div class="rule-h">🎯 Le but</div>
+<div class="rule-p">Skull King est un jeu de plis dans lequel vous pariez sur le <b>nombre exact de plis</b> que vous pensez réaliser à chaque manche. Le pirate avec le score le plus élevé à la fin de la partie remporte la victoire et le titre de <b>Capitaine des Sept Mers</b>.</div>
+
+<div class="rule-h">🃏 Distribution</div>
+<div class="rule-p">Skull King se joue en 10 manches. Une carte est distribuée à chaque joueur à la première manche, deux à la deuxième, et ainsi de suite jusqu'à 10 cartes à la dixième. Toutes les cartes — y compris celles jouées précédemment — sont mélangées à chaque nouvelle manche.</div>
+<div class="note"><b>7-8 joueurs :</b> veillez à ce que chaque joueur ait le même nombre de cartes lors des dernières manches. Il est possible que moins de 9 ou 10 cartes soient distribuées aux manches 9 et 10. L'application ajuste ce nombre automatiquement.</div>
+
+<div class="rule-h">🤜 Parier</div>
+<div class="rule-p">Après avoir pris connaissance de vos cartes, estimez le nombre exact de plis que vous pensez pouvoir remporter. Une fois que tout le monde est prêt, frappez trois fois du poing sur la table en criant à l'unisson « <b>Yo-ho-ho !</b> ». Au troisième coup, tendez chacun un nombre de doigts égal à votre mise, ou un poing fermé si vous misez sur zéro.</div>
+<div class="rule-p">Vous misez sur plus de 5 ? Annoncez votre mise à haute voix au lieu d'utiliser vos doigts.</div>
+
+<div class="rule-h">🎴 Suivre la couleur</div>
+<div class="rule-p">La première carte jouée lors d'un pli indique la couleur à suivre. Les joueurs <b>doivent</b> jouer une carte de cette couleur s'ils en possèdent une. Les cartes sans numéro (cartes spéciales) ne doivent pas être suivies et peuvent être jouées à tout moment.</div>
+<div class="rule-p">Si des couleurs différentes de la première carte sont jouées (mais pas l'atout), ces cartes ne peuvent pas gagner le pli, même si leur valeur est plus élevée.</div>
+<div class="note"><b>L'atout :</b> les cartes noires (Drapeau pirate) battent toutes les autres couleurs. Un 1 noir bat un 14 vert.</div>
+
+<div class="rule-h">⚔️ Hiérarchie des cartes</div>
+<div class="hier">
+  <div class="hi"><div class="hi-r">1</div><div class="hi-i">🧜‍♀️</div><div style="flex:1"><div class="hi-t">Sirène (×2)</div><div class="hi-d">Bat les cartes numérotées et Skull King, perd contre les pirates</div></div></div>
+  <div class="hi"><div class="hi-r">2</div><div class="hi-i">💀</div><div style="flex:1"><div class="hi-t">Skull King (×1)</div><div class="hi-d">Bat tout, sauf les sirènes</div></div></div>
+  <div class="hi"><div class="hi-r">3</div><div class="hi-i">🏴‍☠️</div><div style="flex:1"><div class="hi-t">Pirate (×5)</div><div class="hi-d">Bat les cartes numérotées et les sirènes</div></div></div>
+  <div class="hi"><div class="hi-r">4</div><div class="hi-i">🖤</div><div style="flex:1"><div class="hi-t">Noir — Drapeau pirate (1 à 14)</div><div class="hi-d">Atout : bat toutes les autres couleurs</div></div></div>
+  <div class="hi"><div class="hi-r">5</div><div class="hi-i">🎨</div><div style="flex:1"><div class="hi-t">Vert, jaune, violet (1 à 14)</div><div class="hi-d">La plus haute de la couleur demandée l'emporte</div></div></div>
+  <div class="hi"><div class="hi-r">6</div><div class="hi-i">⛵</div><div style="flex:1"><div class="hi-t">Fuite (×5)</div><div class="hi-d">Perd contre toutes les autres cartes</div></div></div>
+</div>
+<div class="note"><b>Tigresse (×1) :</b> lorsque vous la jouez, vous décidez si elle compte comme un Pirate ou une Fuite.<br><br><b>Cas particuliers :</b> si un pirate, Skull King et une sirène sont joués dans le même pli, la <b>sirène gagne toujours</b>, quel que soit l'ordre de jeu. Si plusieurs cartes identiques (pirates, sirènes, fuites) se retrouvent dans le même pli, la <b>première jouée</b> l'emporte.</div>
+
+<div class="rule-h">🚩 Débuter avec une carte spéciale</div>
+<div class="rule-p"><b>Avec une fuite</b> (ou Tigresse en fuite, ou un butin) : c'est le joueur suivant qui détermine la couleur à suivre. S'il joue aussi une de ces cartes, le choix passe au joueur suivant.</div>
+<div class="rule-p"><b>Avec un personnage</b> (sirène, pirate, Skull King, Tigresse en pirate, kraken ou baleine blanche) : il n'y a <b>pas de couleur à suivre</b>. Tous les autres joueurs jouent la carte de leur choix.</div>
+
+<div class="rule-h" id="r-score">🧮 Les scores selon Skull King</div>
+<div class="rule-p">C'est le système classique, excellent pour les joueurs audacieux. Vous ne gagnez des points que si vous misez correctement — sinon vous en perdez.</div>
+<table class="bonus-tbl">
+  <tr><td>Mise sur 1 ou plus, exacte</td><td>20 pts / pli</td></tr>
+  <tr><td>Mise sur 1 ou plus, ratée</td><td>−10 pts / écart</td></tr>
+  <tr><td>Mise sur zéro, réussie</td><td>10 × nb de cartes</td></tr>
+  <tr><td>Mise sur zéro, ratée</td><td>−10 × nb de cartes</td></tr>
+</table>
+<div class="rule-p" style="font-size:12.5px;color:var(--muted)">Exemple : Félix mise sur 3 et remporte 3 plis → 60 points. Pauline mise sur 2 mais remporte 4 plis → −20 points. Suzie mise zéro à la 7ᵉ manche et ne prend rien → 70 points.</div>
+
+<div class="rule-h">🎩 Les scores selon Rascal</div>
+<div class="rule-p">Méthode équilibrée pour les joueurs rusés. À chaque manche, tous les joueurs ont le même potentiel : <b>10 points par carte distribuée</b>, quelle que soit la mise. Votre précision détermine ce que vous encaissez.</div>
+<table class="bonus-tbl">
+  <tr><td><b>Coup direct</b> — mise exacte</td><td>Tous les points</td></tr>
+  <tr><td><b>Frappe à revers</b> — écart de 1</td><td>La moitié</td></tr>
+  <tr><td><b>Échec cuisant</b> — écart de 2 ou +</td><td>Aucun point</td></tr>
+</table>
+<div class="rule-p">Les mêmes règles s'appliquent aux bonus : tous vos points bonus en cas de coup direct, la moitié en cas de frappe à revers, aucun en cas d'échec cuisant.</div>
+<div class="note"><b>Option Boulet de canon :</b> après avoir misé, chacun choisit — <b>Chevrotine</b> (main ouverte) applique la règle habituelle de Rascal. <b>Boulet de canon</b> (poing fermé) rapporte 15 points par carte distribuée si la mise est correcte, et 0 point en cas d'erreur, même d'un seul pli.</div>
+
+<div class="rule-h" id="r-bonus">🏆 Points bonus</div>
+<div class="rule-p">À chaque manche, vous avez la possibilité de gagner des points bonus.</div>
+<table class="bonus-tbl">
+  <tr><td>🎨 Carte 14 de couleur (vert, jaune, violet)</td><td>+10 pts</td></tr>
+  <tr><td>🖤 Carte 14 noire (Drapeau pirate)</td><td>+20 pts</td></tr>
+  <tr><td>🏴‍☠️ Sirène capturée par un pirate</td><td>+20 pts</td></tr>
+  <tr><td>💀 Pirate capturé par Skull King</td><td>+30 pts</td></tr>
+  <tr><td>🧜‍♀️ Skull King capturé par une sirène</td><td>+40 pts</td></tr>
+</table>
+<div class="note">Chaque 14 que vous possédez à la fin de la manche vous donne un bonus, <b>peu importe qui l'a joué</b>. L'ordre dans lequel les cartes sont jouées ne change rien à l'attribution des bonus.</div>
+
+<div class="rule-h">🗺️ Nombre de cartes</div>
+<div class="rule-p">Prêt à voyager ? Modifiez le nombre de manches et de cartes distribuées.</div>
+<table class="bonus-tbl">
+  <tr><td><b>Pas d'impair</b></td><td>2, 4, 6, 8, 10 ×2</td></tr>
+  <tr><td><b>Prêt au combat</b></td><td>6, 7, 8, 9, 10</td></tr>
+  <tr><td><b>Attaque éclair</b></td><td>5 × 5 cartes</td></tr>
+  <tr><td><b>Tir de barrage</b></td><td>10 × 10 cartes</td></tr>
+  <tr><td><b>Tourbillon</b></td><td>9, 7, 5, 3, 1 ×2</td></tr>
+  <tr><td><b>L'heure du dodo</b></td><td>1 manche à 1 carte</td></tr>
+</table>
+
+<div class="rule-h">👻 Règle à 2 joueurs</div>
+<div class="rule-p">Mélangez et distribuez <b>3 paquets</b>. Vous misez et jouez normalement, mais vous êtes rejoints par le fantôme de <b>Barbe Grise</b>. À chaque manche, vous et votre adversaire commencez alternativement ; Barbe Grise joue toujours sa carte en deuxième position.</div>
+<div class="rule-p">À son tour, retournez la carte supérieure de son paquet et ajoutez-la au pli — il n'a pas besoin de suivre la couleur. Quand il gagne un pli, il commence le suivant. Il ne mise pas et ne marque pas de points. Quand il joue Tigresse, c'est pour fuir.</div>
+
+<div class="rule-h">🐙 Règles avancées</div>
+<div class="rule-p"><b>Kraken :</b> lorsqu'il est joué, le pli est entièrement détruit. Personne ne gagne le pli et les cartes sont mises de côté. Le pli suivant est lancé par le joueur qui aurait dû gagner ce pli.</div>
+<div class="rule-p"><b>Baleine blanche :</b> les cartes spéciales sont détruites et ne peuvent pas gagner. Les cartes numérotées perdent leur couleur : la carte au <b>numéro le plus élevé</b> remporte le pli. En cas d'égalité, la première jouée l'emporte. Si seules des cartes spéciales ont été jouées, le pli est défaussé.</div>
+<div class="rule-p"><b>Eaux agitées :</b> si le kraken et la baleine blanche sont joués dans le même pli, la <b>deuxième carte jouée</b> remporte la bataille et son action s'applique.</div>
+<div class="rule-p"><b>Cartes Butin (×2) :</b> en jouant une carte Butin, vous concluez une alliance avec le joueur qui la remportera. Si vous misez <b>tous les deux</b> correctement, vous gagnez chacun 20 points bonus.</div>
+
+<div class="rule-h">🏴‍☠️ Pouvoirs avancés des pirates</div>
+<div class="rule-p">Pour débloquer le pouvoir d'un pirate, vous devez gagner un pli avec lui. Le pouvoir doit être utilisé immédiatement.</div>
+<div class="hier">
+  <div class="hi"><div class="hi-i">🥧</div><div style="flex:1"><div class="hi-t">Rosie la Douce</div><div class="hi-d">Choisissez n'importe quel joueur, y compris vous, pour commencer le prochain pli</div></div></div>
+  <div class="hi"><div class="hi-i">🎭</div><div style="flex:1"><div class="hi-t">Will le Bandit</div><div class="hi-d">Ajoutez 2 cartes de la pioche à votre main, puis défaussez-en 2</div></div></div>
+  <div class="hi"><div class="hi-i">🎲</div><div style="flex:1"><div class="hi-t">Rascal le Flambeur</div><div class="hi-d">Pariez 0, 10 ou 20 points. Gagnez-les si votre mise est exacte, perdez-les sinon</div></div></div>
+  <div class="hi"><div class="hi-i">🔮</div><div style="flex:1"><div class="hi-t">Juanita Jade</div><div class="hi-d">Regardez secrètement les cartes non distribuées</div></div></div>
+  <div class="hi"><div class="hi-i">💪</div><div style="flex:1"><div class="hi-t">Harry le Géant</div><div class="hi-d">Modifiez votre mise de +1, −1, ou laissez-la telle quelle. Seul pouvoir utilisable après le dernier pli</div></div></div>
+</div>
+<div class="note" style="margin-bottom:24px">Règles du jeu <b>Skull King™</b> — Grandpa Beck's Games®. Application de score non officielle, conçue pour accompagner votre boîte de jeu.</div>
+`;
+
+/* ═══════════════ DÉMARRAGE ═══════════════ */
+(function init(){
+  try{if(localStorage.getItem('sk.dark')==='1'){
+    document.body.classList.add('dark');
+    document.querySelector('meta[name=theme-color]').setAttribute('content','#0d1824');
+  }}catch(e){}
+  state=blank(); state.players=['','',''];
+  resetSetup();
+  document.getElementById('tg-dark').classList.toggle('on',document.body.classList.contains('dark'));
+  // empêche le zoom par double-tap
+  let lt=0;
+  document.addEventListener('touchend',e=>{
+    const n=Date.now(); if(n-lt<=300){e.preventDefault()} lt=n;
+  },{passive:false});
+})();
+</script>
+</body>
+</html>
