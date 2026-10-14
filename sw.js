@@ -3,7 +3,7 @@
 // est servi depuis la copie locale, puis sa dernière version est téléchargée discrètement.
 // Si un fichier a changé, la page est prévenue (« ardoise-updated ») et applique la mise à jour.
 // Hors réseau, le téléchargement échoue en silence et rien ne casse.
-const CACHE = 'ardoise-v5';
+const CACHE = 'ardoise-v6';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './src/styles.css', './src/app.js',
@@ -11,6 +11,10 @@ const CORE = [
   './src/games/registry.js',
   './src/games/skull-king/index.js', './src/games/skull-king/scoring.js', './src/games/skull-king/rules-fr.js',
   './src/games/skyjo/index.js', './src/games/skyjo/scoring.js', './src/games/skyjo/rules-fr.js',
+  './src/games/jass/index.js', './src/games/jass/scoring.js', './src/games/jass/rules-fr.js',
+  './src/games/president/index.js', './src/games/president/scoring.js', './src/games/president/rules-fr.js',
+  './src/games/menteur/index.js', './src/games/menteur/scoring.js', './src/games/menteur/rules-fr.js',
+  './src/games/blackjack/index.js', './src/games/blackjack/scoring.js', './src/games/blackjack/rules-fr.js',
   './fonts/fraunces-latin.woff2', './fonts/manrope-latin.woff2',
   './icons/apple-touch-icon.png', './icons/icon-192.png'
 ];

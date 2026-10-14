@@ -36,7 +36,7 @@ src/
       scoring.js        calcul des points (pur, testé)
       rules-fr.js       règles affichées dans l'app
       RULES.md          règles retenues, variantes, sources, décisions
-    skyjo/              même organisation (index.js, scoring.js, rules-fr.js, RULES.md)
+    skyjo/ jass/ president/ menteur/ blackjack/   même organisation (index.js, scoring.js, rules-fr.js, RULES.md)
 tests/                  npm test (node --test, sans dépendance)
 ```
 
@@ -117,10 +117,10 @@ est conservée intacte, par sécurité.
 | 0 | Plan, extraction du calcul Skull King + tests, 4 bugs corrigés, manifest PWA | ✅ fait |
 | 1 | Noyau Ardoise : accueil, joueurs réutilisables, historique, stats, reprise de l'ancienne sauvegarde ; Skull King devient le 1er module ; nouveau design | ✅ fait |
 | 2 | Skyjo et Skyjo Action : saisie du total de chaque grille, doublement automatique, fin à 100 points (RULES.md + tests) | ✅ fait |
-| 3 | Jass : Schieber, puis Coiffeur, Différenzler… | à faire |
-| 4 | Trou du cul / Président | à faire |
-| 5 | Menteur (version à préciser avec toi) | à faire |
-| 6 | Blackjack (jetons et gains) | à faire |
+| 3 | Jass : Schieber, Coiffeur, Différenzler | ✅ fait (à valider) |
+| 4 | Président / Trou du cul | ✅ fait (à valider) |
+| 5 | Menteur | ✅ fait (version à valider) |
+| 6 | Blackjack (jetons et gains) | ✅ fait (à valider) |
 | — | Écran d'ouverture (splash), micro-animations, icônes définitives, thème commun Zeste / Matière / Forge | en continu |
 
 Pour chaque jeu, on suit les mêmes étapes :
@@ -228,7 +228,10 @@ classement, saisie d'une manche, fin de partie, joueurs).
 
 ## Questions ouvertes
 
-1. **Skyjo :** en cas d'égalité pour la victoire, l'app déclare des gagnants ex æquo (la notice
-   n'en parle pas). Faut-il proposer des variantes « maison » (partie en 50 points, pas de
-   doublement en cas d'égalité) ?
-2. **Menteur :** quelle version exactement ? Elle est à préciser avant la phase 5.
+Chaque jeu a sa liste « à valider » dans son `RULES.md`. Les principales :
+
+1. **Jass** : les Stöck sont-ils multipliés ? Objectif par défaut 1000 et multiplicateurs activés par défaut : à confirmer.
+2. **Président** : à 3 joueurs, les rôles sont Président, Neutre et Trou du cul. Faut-il compter les points de la première manche ?
+3. **Menteur** : version avec annonce d'une couleur ou d'une valeur ? Faut-il compter les cartes en main à la fin, ou les cartes ramassées ?
+4. **Blackjack** : jetons de départ, mise par défaut, rachat de jetons.
+5. **Skyjo** : variantes « maison » plus tard.
