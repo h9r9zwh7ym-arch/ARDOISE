@@ -18,6 +18,31 @@
 <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="src/styles.css">
+<!-- Tous les modules sont demandés en parallèle dès le départ (sinon : chargement en cascade) -->
+<link rel="modulepreload" href="src/app.js">
+<link rel="modulepreload" href="src/core/store.js">
+<link rel="modulepreload" href="src/core/scoring.js">
+<link rel="modulepreload" href="src/core/ui.js">
+<link rel="modulepreload" href="src/core/charts.js">
+<link rel="modulepreload" href="src/games/registry.js">
+<link rel="modulepreload" href="src/games/skull-king/index.js">
+<link rel="modulepreload" href="src/games/skull-king/scoring.js">
+<link rel="modulepreload" href="src/games/skull-king/rules-fr.js">
+<link rel="modulepreload" href="src/games/skyjo/index.js">
+<link rel="modulepreload" href="src/games/skyjo/scoring.js">
+<link rel="modulepreload" href="src/games/skyjo/rules-fr.js">
+<link rel="modulepreload" href="src/games/jass/index.js">
+<link rel="modulepreload" href="src/games/jass/scoring.js">
+<link rel="modulepreload" href="src/games/jass/rules-fr.js">
+<link rel="modulepreload" href="src/games/president/index.js">
+<link rel="modulepreload" href="src/games/president/scoring.js">
+<link rel="modulepreload" href="src/games/president/rules-fr.js">
+<link rel="modulepreload" href="src/games/menteur/index.js">
+<link rel="modulepreload" href="src/games/menteur/scoring.js">
+<link rel="modulepreload" href="src/games/menteur/rules-fr.js">
+<link rel="modulepreload" href="src/games/blackjack/index.js">
+<link rel="modulepreload" href="src/games/blackjack/scoring.js">
+<link rel="modulepreload" href="src/games/blackjack/rules-fr.js">
 <script>
   // Thème appliqué avant le premier affichage (évite un flash)
   try { var t = JSON.parse(localStorage.getItem('ardoise.v1') || '{}').prefs; t = t && t.theme;

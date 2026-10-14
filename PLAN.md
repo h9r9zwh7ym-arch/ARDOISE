@@ -121,9 +121,8 @@ est conservée intacte, par sécurité.
 | 4 | Président / Trou du cul | ✅ fait (à valider) |
 | 5 | Menteur | ✅ fait (version à valider) |
 | 6 | Blackjack (jetons et gains) | ✅ fait (à valider) |
-| 7 | Uno (plan ci-dessous) | à faire |
-| 8 | Section « Jeux à boire » (plan ci-dessous) | à faire |
-| — | Animations (transitions, cascade, compteurs, victoire) : faites ; icônes définitives à venir | en continu |
+| 7 | Graphiques (fin de partie, joueurs), optimisation, animations | ✅ fait |
+| — | Pas de nouveau jeu pour l'instant : l'app reste légère. Icônes définitives à venir. | — |
 
 Pour chaque jeu, on suit les mêmes étapes :
 
@@ -132,64 +131,6 @@ Pour chaque jeu, on suit les mêmes étapes :
 3. Te poser les questions sur les points ambigus.
 4. Écrire les tests de calcul.
 5. Coder le module.
-
-## Prochaine étape : Uno (plan)
-
-Source : notice officielle Mattel (UNO, 112 cartes, 2 à 10 joueurs, réf. 42001,
-<https://service.mattel.com/instruction_sheets/42001pr.pdf>).
-
-**Décompte officiel**
-
-| Carte | Points |
-|---|---|
-| Cartes numérotées (0 à 9) | leur valeur |
-| +2, Inversion, Passe | 20 |
-| Joker, Joker +4 | 50 |
-
-- Le premier qui pose toutes ses cartes **marque les points des cartes restées dans les mains
-  des autres**. Le premier à **500 points** gagne.
-- Si la dernière carte posée est un +2 ou un +4, le joueur suivant pioche quand même, et ces
-  cartes comptent dans le décompte.
-- **Autre décompte officiel** : chacun garde le total des points qu'il a en main à la fin de
-  chaque manche. Quand un joueur atteint 500, le plus petit total gagne.
-- **« Challenge UNO »** (variante officielle) : à 500 points, un joueur est éliminé. Les deux
-  derniers finissent en face à face.
-- **À 4 en équipes** (partenaires face à face) : l'équipe gagnante marque les points des mains
-  adverses.
-
-**Dans l'app**
-1. Variante choisie au départ : *Classique* (le gagnant marque), *Points en main* (le plus petit
-   total gagne) ou *Élimination*. Il y aura aussi l'objectif (500 par défaut) et une option
-   « en équipes » à 4.
-2. Saisie d'une manche :
-   - on touche le joueur qui a fini ;
-   - pour chaque autre joueur, une petite calculette : la somme des cartes numérotées, le nombre
-     de cartes à 20 et le nombre de cartes à 50, et l'app fait le total. Pas de calcul de tête.
-3. Tests sur les exemples de la notice, puis `RULES.md`.
-
-**Questions à trancher** : quelle édition as-tu ? Les éditions récentes ont des cartes « Joker
-Mélange » et « Joker Personnalisable » (40 points selon unorules.com, site non officiel). La
-pénalité pour un « UNO » oublié est de 4 cartes dans cette notice, et de 2 dans les éditions
-récentes. Objectif de 500 par défaut ?
-
-## Ensuite : « Jeux à boire » (plan)
-
-Une section repliable dans le choix du jeu (« Jeux à boire ▾ »), pour ne pas encombrer la liste
-principale (loi de Hick). On n'y met que les jeux où l'app sert vraiment pendant la partie. Pas
-de distributeur virtuel : on joue avec de vraies cartes.
-
-Pistes, à choisir avec toi :
-- **Le Roi des Cœurs / Kings (« Ring of Fire »)** : on touche la valeur de la carte tirée et
-  l'app affiche la règle associée. Les règles sont modifiables, et on peut ajouter celles
-  inventées pendant la partie. L'app compte aussi les rois sortis.
-- **Le Bus (« Ride the Bus »)** : l'app guide les 4 questions (rouge ou noir, plus haut ou plus
-  bas, entre ou à l'extérieur, la couleur) et compte les erreurs.
-- **Pyramide** : l'app rappelle les règles par étage et compte les gorgées données ou reçues.
-- **Compteur de gorgées** pour n'importe quel jeu, avec un classement en fin de soirée.
-
-Toujours avec un rappel « avec modération » et une option **gages sans alcool**.
-
-**Questions** : quels jeux à boire jouez-vous ? Faut-il compter les gorgées ?
 
 ## Bugs Skull King corrigés (phase 0)
 

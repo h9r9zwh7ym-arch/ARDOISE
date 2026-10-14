@@ -3,6 +3,7 @@
 import { createStore, playerByName, normName, uid } from './core/store.js';
 import { played, totals, ranking, winners, playerStats, recentPlayers, winnerMode } from './core/scoring.js';
 import { GAMES, getGame } from './games/registry.js';
+import { lineChart, barChart, placeChart, installChartTips } from './core/charts.js';
 import {
   on, installDispatcher, esc, sign, num, plural, icon, LOGO, avatar, toggle, segmented,
   toast, openSheet, closeSheet, shake, buzz, shortDate
@@ -286,6 +287,7 @@ const SCREENS = {
       </section>
       ${rankCard(g, false).html}
       <div class="tiles">${mod.endStats(g, names).map(s => `<div class="tile"><b>${s.v}</b><span>${s.l}</span></div>`).join('')}</div>
+      ${endCharts(g, p)}
       ${scoreSheet(g)}`;
     return {
       title: 'Fin de partie', sub: `${mod.name} · ${shortDate(g.endedAt || g.startedAt)}`, back: { to: 'home', label: 'Accueil' },
@@ -329,6 +331,32 @@ function confetti() {
     c.style.animationDuration = (1.2 + Math.random() * .8) + 's';
     box.appendChild(c);
   }
+}
+
+/* ═══════════════ Graphiques ═══════════════ */
+const roundWord = mod => { const w = roundsLabel(mod, 1).replace(/^1 /, ''); return w[0].toUpperCase() + w.slice(1); };
+function endCharts(g, p) {
+  const mod = modOf(g), names = namesOf(g), n = played(g);
+  if (n < 1) return '';
+  const focus = p.focus ?? winners(mod, g)[0] ?? 0;
+  const animate = !p.chartsShown; p.chartsShown = true;
+  const cum = Array.from({ length: n + 1 }, (_, r) => totals(mod, g, r));   // un calcul par manche
+  const series = names.map((name, i) => ({ name, values: cum.map(t => t[i]) }));
+  const per = Array.from({ length: n }, (_, r) => mod.roundPoints(g, r)[focus]);
+  const rl = r => `${roundWord(mod)} ${r}`;
+  return `<section class="section"><div class="section-h"><h2 class="label">Évolution du score</h2></div>
+      <div class="card pad">${lineChart({ id: 'ch-total', series, focus, animate, label: 'Score cumulé', roundLabel: rl })}</div></section>
+    ${n > 1 ? `<section class="section"><div class="section-h"><h2 class="label">${roundWord(mod)}s de ${esc(names[focus])}</h2></div>
+      <div class="card pad">${barChart({ id: 'ch-rounds', values: per, polarity: winnerMode(mod, g) !== 'lowest', animate, roundLabel: rl })}</div></section>` : ''}`;
+}
+function playerPlaces(id) {
+  return db.games.filter(g => g.status === 'done' && g.playerIds.includes(id) && modOf(g))
+    .sort((a, b) => (a.endedAt || a.startedAt) - (b.endedAt || b.startedAt)).slice(-10)
+    .map(g => {
+      const mod = modOf(g), i = g.playerIds.indexOf(id), side = mod.sideOf ? mod.sideOf(g, i) : i;
+      const rows = ranking(mod, g), row = rows.find(r => r.i === side);
+      return { place: row ? row.rank : rows.length, of: rows.length, label: `${mod.name} · ${shortDate(g.endedAt || g.startedAt)}` };
+    });
 }
 
 /* ═══════════════ Modification d'une manche validée ═══════════════ */
@@ -443,6 +471,8 @@ function playerSheet(id) {
     title: esc(p.name),
     body: `<div class="tiles"><div class="tile"><b>${s.played}</b><span>parties terminées</span></div>
         <div class="tile"><b>${s.wins}</b><span>victoires</span></div><div class="tile"><b>${s.winRate} %</b><span>taux de victoire</span></div></div>
+      ${s.played > 1 ? `<section class="section"><h3 class="label">Places sur les dernières parties</h3>
+        <div class="card pad">${placeChart({ id: 'ch-places', points: playerPlaces(id), animate: true })}</div></section>` : ''}
       ${byGame.length ? `<section class="section"><h3 class="label">Par jeu</h3><div class="card pad bars">${byGame.map(([gid, v]) =>
         `<div class="bar-row"><span style="width:96px">${(getGame(gid) || { name: gid }).name}</span><span class="track"><i style="width:${v.played / max * 100}%"></i></span><span class="num">${v.wins}/${v.played}</span></div>`).join('')}
         </div><p class="hint">Victoires / parties</p></section>` : ''}
@@ -598,6 +628,7 @@ on({
     render();
   },
   menu: menuSheet,
+  chartFocus: d => { route.params.focus = +d.i; render(); },
   rules: d => {
     const m = getGame(d.game);
     openSheet({ title: `Règles · ${m.name}`, body: `<div class="rules">${m.rulesHtml}</div>` });
@@ -659,6 +690,7 @@ on({
 
 /* ═══════════════ Démarrage ═══════════════ */
 installDispatcher();
+installChartTips();
 applyTheme();
 if (db.current && gameById(db.current)?.status === 'playing') route = { name: 'home', params: {} };
 render();
@@ -666,8 +698,12 @@ const splash = document.getElementById('splash');
 const justUpdated = (() => { try { const v = sessionStorage.getItem('ardoise.updated'); sessionStorage.removeItem('ardoise.updated'); return !!v; } catch (e) { return false; } })();
 if (justUpdated) { splash.remove(); setTimeout(() => toast('Ardoise est à jour'), 300); }
 else {
-  setTimeout(() => splash.classList.add('out'), matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 1100);
-  setTimeout(() => splash.remove(), 1600);
+  // l'ouverture ne se joue qu'au premier lancement de la session, et brièvement
+  let seen = false;
+  try { seen = !!sessionStorage.getItem('ardoise.seen'); sessionStorage.setItem('ardoise.seen', '1'); } catch (e) { /* rien */ }
+  const ms = seen || reducedMotion() ? 0 : 850;
+  setTimeout(() => splash.classList.add('out'), ms);
+  setTimeout(() => splash.remove(), ms + 400);
 }
 
 /* ═══════════════ Mise à jour automatique (comme Zeste et ASCEN) ═══════════════
