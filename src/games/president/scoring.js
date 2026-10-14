@@ -4,7 +4,7 @@
 /**
  * Rôle selon la place d'arrivée (0 = premier sorti) pour n joueurs.
  * 1er Président, 2e Vice-président (dès 4 joueurs), avant-dernier Vice-trou du cul (dès 4),
- * dernier Trou du cul ; les autres sont Neutres.
+ * dernier Trou du cul ; les autres sont Neutres. À 2 joueurs : Président et Trou du cul.
  */
 export function roleOf(place, n) {
   if (place === 0) return 'p';
@@ -53,7 +53,9 @@ export function exchanges(prev, n, names) {
   const who = role => { const k = Array.from({ length: n }, (_, p) => p).find(p => roleOf(p, n) === role); return k === undefined ? null : names[prev.order[k]]; };
   const out = [];
   const p = who('p'), t = who('tdc'), vp = who('vp'), vt = who('vtdc');
-  if (p && t) out.push(`${t} donne ses 2 meilleures cartes à ${p}, qui lui en rend 2 de son choix`);
+  // À 2 joueurs (ni Vice-président ni Vice-trou du cul), l'échange se fait sur une seule carte.
+  if (p && t) out.push(n === 2 ? `${t} donne sa meilleure carte à ${p}, qui lui en rend 1 de son choix`
+    : `${t} donne ses 2 meilleures cartes à ${p}, qui lui en rend 2 de son choix`);
   if (vp && vt) out.push(`${vt} donne sa meilleure carte à ${vp}, qui lui en rend 1 de son choix`);
   return out;
 }

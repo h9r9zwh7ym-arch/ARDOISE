@@ -9,7 +9,7 @@ import {
   toast, openSheet, closeSheet, shake, buzz, shortDate
 } from './core/ui.js';
 
-const VERSION = '1.5';
+const VERSION = '1.6';
 const store = createStore(localStorage);
 let db = store.load();
 let route = { name: 'home', params: {} };

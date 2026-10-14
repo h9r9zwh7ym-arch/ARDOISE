@@ -15,7 +15,7 @@ ainsi que les **échanges de cartes** à faire au début de la manche suivante.
 | Règle | Retenu | Source |
 |---|---|---|
 | Rôles | 1er Président, 2e Vice-président, avant-dernier Vice-trou du cul (« Secrétaire »), dernier Trou du cul, les autres Neutres | Wikipédia |
-| Échanges | Trou du cul → 2 meilleures cartes au Président, qui en rend 2 au choix ; Vice-trou du cul → 1 meilleure carte au Vice-président, qui en rend 1 ; le Neutre n'échange pas | Wikipédia |
+| Échanges | Trou du cul → 2 meilleures cartes (1 seule à 2 joueurs) au Président, qui en rend 2 au choix ; Vice-trou du cul → 1 meilleure carte au Vice-président, qui en rend 1 ; le Neutre n'échange pas | Wikipédia |
 | Points | Président n−1, puis un de moins par place, jusqu'au Trou du cul à 0 | Wikipédia, « jeu aux points » |
 | Putsch (option) | Réussi (le putschiste finit Président) : n points. Raté : −1. Pas d'échange pendant une manche de putsch. | Wikipédia |
 | Fin de partie | Libre (bouton « Terminer la partie »), 10 manches, ou premier à 30 points | Wikipédia parle d'un « nombre de points prédéterminé » ; les seuils sont des choix de l'app |
@@ -26,9 +26,16 @@ Les variantes **Révolution**, **le 2 bat tout**, **interdit de finir par un 2**
 
 ## Jeu de cartes
 
-On choisit le jeu utilisé : 54 cartes (52 + 2 jokers au-dessus du 2) ou 36 cartes (6 à As, As le
-plus fort). Avec 36 cartes, les variantes liées au 2 (« le 2 bat tout », « interdit de finir par
-un 2 ») sont masquées.
+On choisit le jeu utilisé : 54 cartes (52 + 2 jokers au-dessus du 2) ou 36 cartes (6 à As).
+Avec 36 cartes, **le 6 est la carte la plus forte** : il prend la place du 2 (ordre 7, 8, 9, 10,
+V, D, R, As, 6). Les variantes deviennent « le 6 bat tout » et « interdit de finir par un 6 »
+(précision du joueur).
+
+## À 2 joueurs
+
+Précision du joueur : on peut jouer à deux. Il y a un Président et un Trou du cul à chaque
+manche, sans Vice. Le Trou du cul ne donne qu'**une seule carte** (sa meilleure) au Président,
+qui lui en rend une. Points : 1 pour le Président, 0 pour le Trou du cul.
 
 ## Choix faits par l'app : à valider
 
