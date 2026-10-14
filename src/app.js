@@ -1,714 +1,590 @@
-import * as SK from './games/skull-king/scoring.js';
-import { RULES_HTML } from './games/skull-king/rules-fr.js';
+/* Ardoise — coquille de l'application : navigation, écrans communs, modification des manches.
+   Chaque jeu (src/games/<jeu>/) fournit sa logique de points et son écran de saisie. */
+import { createStore, playerByName, normName, uid } from './core/store.js';
+import { played, totals, ranking, winners, playerStats, recentPlayers } from './core/scoring.js';
+import { GAMES, getGame } from './games/registry.js';
+import {
+  on, installDispatcher, esc, sign, plural, icon, LOGO, avatar, toggle, segmented,
+  toast, openSheet, closeSheet, shake, buzz, shortDate
+} from './core/ui.js';
 
-/* ═══════════════ DONNÉES DE JEU (règles officielles) ═══════════════ */
-const MODES={
-  classique:{n:'Classique',i:'🏴‍☠️',d:'10 manches : 1, 2, 3… jusqu’à 10 cartes.',c:[1,2,3,4,5,6,7,8,9,10]},
-  impair:{n:'Pas d’impair',i:'2️⃣',d:'Deux manches de 2, 4, 6, 8 et enfin 10 cartes.',c:[2,2,4,4,6,6,8,8,10,10]},
-  combat:{n:'Prêt au combat',i:'⚔️',d:'Partie en 5 manches : 6, 7, 8, 9 et enfin 10 cartes.',c:[6,7,8,9,10]},
-  eclair:{n:'Attaque éclair',i:'⚡',d:'Cinq manches avec 5 cartes.',c:[5,5,5,5,5]},
-  barrage:{n:'Tir de barrage',i:'💥',d:'Dix manches avec 10 cartes.',c:[10,10,10,10,10,10,10,10,10,10]},
-  tourbillon:{n:'Tourbillon',i:'🌀',d:'Deux manches de 9, 7, 5, 3 et enfin 1 carte.',c:[9,9,7,7,5,5,3,3,1,1]},
-  dodo:{n:'L’heure du dodo',i:'🌙',d:'Une manche avec 1 carte, puis un bisou et bonne nuit !',c:[1]}
-};
-const AV=[
- {i:'💀',c:'#c8860a'},{i:'🦜',c:'#1a6b3c'},{i:'⚓',c:'#185fa5'},{i:'💎',c:'#8b2a8b'},
- {i:'🗡️',c:'#9b2020'},{i:'🐚',c:'#0f6e7a'},{i:'🏴',c:'#5a4a8a'},{i:'⚡',c:'#b86a0a'}
-];
-const MEDAL=['🥇','🥈','🥉'];
+const VERSION = '1.0';
+const store = createStore(localStorage);
+let db = store.load();
+let route = { name: 'home', params: {} };
+let setup = null;      // brouillon de nouvelle partie
+let draft = null;      // brouillon de modification de manche
+const lastOrder = {};  // ordre du classement affiché, pour animer les changements de place
 
-/* ═══════════════ ÉTAT ═══════════════ */
-let state=null, bonusOpen={}, draft=null;
-const K='skullking.v3';
+const save = () => { if (!store.save(db)) toast('Enregistrement impossible : stockage plein ?'); };
+const gameById = id => db.games.find(g => g.id === id);
+const playerById = id => db.players.find(p => p.id === id);
+const nameOf = id => (playerById(id) || { name: '?' }).name;
+const namesOf = game => game.playerIds.map(nameOf);
+const modOf = game => getGame(game.gameId);
+const gameTotals = (game, upto) => totals(modOf(game), game, upto);
 
-function blank(){
-  return {players:[],mode:'classique',scoring:'sk',cannonball:false,wager:false,loot:false,
-          kraken:false,whale:false,rounds:[],cur:0,dealer:0,done:false,started:Date.now()};
+/* ═══════════════ Navigation et rendu ═══════════════ */
+function go(name, params = {}) {
+  closeSheet(true);
+  route = { name, params };
+  render({ enter: true });
+  window.scrollTo(0, 0);
 }
 
-function save(){try{localStorage.setItem(K,JSON.stringify(state))}catch(e){}}
-function load(){
-  try{
-    const r=localStorage.getItem(K); if(!r)return null;
-    const s=Object.assign(blank(),JSON.parse(r));
-    // parties enregistrées avant l'ajout du Kraken / de la Baleine blanche
-    s.rounds.forEach(R=>{if(R.destroyed===undefined)R.destroyed=0});
+let pendingTick = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest('.step-b');
+  pendingTick = b ? { act: b.dataset.act, i: b.dataset.i, k: b.dataset.k } : null;
+  if (b) buzz();
+}, true);
+function applyTick() {
+  if (!pendingTick) return;
+  const { act, i, k } = pendingTick;
+  let sel = `.step-b[data-act="${act}"]`;
+  if (i !== undefined) sel += `[data-i="${i}"]`;
+  if (k !== undefined) sel += `[data-k="${k}"]`;
+  const b = document.querySelector(sel);
+  const v = b && b.closest('.step').querySelector('.step-v');
+  if (v) { v.classList.remove('tick'); void v.offsetWidth; v.classList.add('tick'); }
+  pendingTick = null;
+}
+
+function render(opts = {}) {
+  const screen = SCREENS[route.name] || SCREENS.home;
+  const s = screen(route.params, opts);
+  if (!s) return;
+  const tb = document.getElementById('topbar');
+  tb.classList.toggle('large', !!s.large);
+  tb.innerHTML = s.large
+    ? `${LOGO}<div class="tb-txt"><h1 class="tb-title">${s.title}</h1></div>${s.right || ''}`
+    : `${s.back ? `<button class="icon-btn" data-act="go" data-to="${s.back.to}" ${s.back.id ? `data-id="${s.back.id}"` : ''} aria-label="${s.back.label || 'Retour'}">${icon('back')}</button>` : ''}
+       <div class="tb-txt">${s.sub ? `<span class="tb-sub">${s.sub}</span>` : ''}<h1 class="tb-title">${s.title}</h1></div>${s.right || ''}`;
+  const view = document.getElementById('view');
+  view.innerHTML = s.body;
+  view.classList.remove('enter');
+  if (opts.enter) { void view.offsetWidth; view.classList.add('enter'); }
+  document.getElementById('bar').innerHTML = s.bar || '';
+  const tabs = document.getElementById('tabs');
+  tabs.hidden = !s.tab;
+  if (s.tab) ['home', 'players'].forEach(t => document.getElementById('tab-' + t).classList.toggle('on', t === s.tab));
+  document.title = s.large ? 'Ardoise' : `${s.title.replace(/<[^>]+>/g, '')} · Ardoise`;
+  applyTick();
+  if (s.after) requestAnimationFrame(s.after);
+}
+
+window.addEventListener('scroll', () => {
+  document.getElementById('topbar').classList.toggle('scrolled', window.scrollY > 4);
+}, { passive: true });
+
+/* ═══════════════ Morceaux d'interface communs ═══════════════ */
+function rankCard(game, animate) {
+  const mod = modOf(game), names = namesOf(game), rows = ranking(mod, game), n = played(game);
+  const html = `<section class="section"><div class="section-h"><h2 class="label">Classement</h2><span class="label">Total</span></div>
+    <div class="card rank">${rows.map((r, k) => `
+    <div class="rank-row ${r.rank === 1 ? 'first' : ''}" data-pi="${r.i}">
+      <span class="rank-pos">${r.rank === 1 && n ? icon('crown', 20, 'role="img" aria-label="En tête"') : r.rank}</span>
+      ${avatar(names[r.i], r.rank === 1 && n ? 'lead' : '')}
+      <span class="rank-n">${esc(names[r.i])}</span>
+      ${n ? `<span class="rank-d ${r.delta > 0 ? 'pos' : r.delta < 0 ? 'neg' : ''}">${sign(r.delta)}</span>` : ''}
+      <span class="rank-total">${r.total}</span>
+    </div>`).join('')}</div></section>`;
+  const order = rows.map(r => r.i), prev = lastOrder[game.id];
+  lastOrder[game.id] = order;
+  const after = () => {
+    if (!animate || !prev) return;
+    document.querySelectorAll('.rank-row').forEach(el => {
+      const i = +el.dataset.pi, from = prev.indexOf(i), to = order.indexOf(i);
+      el.classList.add('flash');
+      if (from >= 0 && from !== to) {
+        el.style.transform = `translateY(${(from - to) * el.offsetHeight}px)`;
+        el.style.transition = 'none';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          el.style.transition = 'transform .5s cubic-bezier(.2,.8,.2,1)'; el.style.transform = '';
+        }));
+      }
+    });
+  };
+  return { html, after };
+}
+
+function scoreSheet(game) {
+  const mod = modOf(game), names = namesOf(game), n = played(game);
+  if (!n) return '';
+  const pts = Array.from({ length: n }, (_, r) => mod.roundPoints(game, r));
+  let h = '<table class="tbl"><thead><tr><th class="nm" scope="col"><span class="sr">Joueur</span></th>';
+  for (let r = 0; r < n; r++) {
+    const hd = mod.roundHead(game, r);
+    h += `<th scope="col"><button class="th-btn" data-act="edit" data-r="${r}" aria-label="Modifier la manche ${r + 1}">${hd.label}<small>${hd.sub}</small></button></th>`;
+  }
+  h += '</tr></thead><tbody>';
+  names.forEach((nm, i) => {
+    h += `<tr><td class="nm">${esc(nm)}</td>${pts.map(p => `<td class="${p[i] > 0 ? 'pos' : p[i] < 0 ? 'neg' : ''}">${sign(p[i])}</td>`).join('')}</tr>`;
+  });
+  return `<section class="section"><div class="section-h"><h2 class="label">Feuille de score</h2></div>
+    <div class="card pad"><div class="sheet-wrap">${h}</tbody></table></div>
+    <p class="hint" style="margin-top:8px">Touchez une manche pour la modifier.</p></div></section>`;
+}
+
+function gameRow(g) {
+  const mod = modOf(g); if (!mod) return '';
+  const names = namesOf(g), n = played(g);
+  let title, val = '';
+  if (g.status === 'done') {
+    const w = winners(mod, g), t = gameTotals(g);
+    title = `${w.map(i => esc(names[i])).join(' et ')} ${w.length > 1 ? 'à égalité' : 'gagne'}`;
+    val = `<span class="row-v">${t[w[0]]}</span>`;
+  } else title = 'En cours';
+  return `<li><button class="row" data-act="open" data-id="${g.id}">
+    <div class="row-txt"><span class="row-t">${mod.name} · ${title}</span>
+    <span class="row-s">${shortDate(g.startedAt)} · ${plural(names.length, 'joueur', 'joueurs')} · ${plural(n, 'manche', 'manches')}</span></div>
+    ${val}${icon('chevron', 18, 'class="ic chev"')}</button></li>`;
+}
+
+/* ═══════════════ Écrans ═══════════════ */
+const SCREENS = {
+  home() {
+    // Partie à reprendre : la dernière ouverte, sinon la plus récente encore en cours
+    const cur = db.current && gameById(db.current);
+    const playing = cur && cur.status === 'playing' ? cur
+      : db.games.filter(g => g.status === 'playing').sort((a, b) => b.startedAt - a.startedAt)[0] || null;
+    let body = '';
+    if (playing) {
+      const mod = modOf(playing), rows = ranking(mod, playing), names = namesOf(playing), p = mod.progress(playing);
+      const lead = played(playing) ? `${esc(names[rows[0].i])} mène` : 'Aucune manche jouée';
+      body += `<button class="resume" data-act="go" data-to="game" data-id="${playing.id}">
+        <span class="resume-k">Partie en cours</span>
+        <span class="resume-main"><span><span class="resume-t">${mod.name}</span><br><span class="resume-s">${p.label} · ${esc(names.join(', '))}</span></span>
+          <span><span class="resume-s">${lead}</span><br><span class="resume-v">${played(playing) ? rows[0].total : ''}</span></span></span>
+        <span class="track"><i style="width:${played(playing) / p.total * 100}%"></i></span>
+        <span class="resume-go">Reprendre ${icon('next', 20)}</span>
+      </button>`;
+    }
+    body += `<button class="btn ${playing ? 'btn-secondary' : 'btn-primary'}" data-act="newGame">${icon('plus', 22)} Nouvelle partie</button>`;
+    const others = db.games.filter(g => g !== playing).sort((a, b) => b.startedAt - a.startedAt);
+    if (others.length) {
+      body += `<section class="section"><div class="section-h"><h2 class="label">Dernières parties</h2>
+        ${others.length > 3 ? '<button class="link" data-act="go" data-to="history">Tout voir</button>' : ''}</div>
+        <ul class="card list">${others.slice(0, 3).map(gameRow).join('')}</ul></section>`;
+    } else if (!playing) {
+      body += `<div class="empty">${LOGO}<p>Aucune partie pour l’instant.<br>Lancez la première !</p></div>`;
+    }
+    return { large: true, title: 'Ardoise', right: `<button class="icon-btn" data-act="settings" aria-label="Réglages">${icon('settings')}</button>`, body, tab: 'home' };
+  },
+
+  newgame() {
+    if (!setup) return SCREENS.home();
+    if (!setup.gameId) {
+      return { title: 'Nouvelle partie', sub: 'Choisir un jeu', back: { to: 'home' },
+        body: `<ul class="card list">${GAMES.map(m => `<li><button class="row" data-act="pickGame" data-g="${m.id}">
+          <div class="row-txt"><span class="row-t">${m.name}</span><span class="row-s">${m.tagline}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>`).join('')}</ul>` };
+    }
+    const mod = getGame(setup.gameId), n = setup.playerIds.length;
+    const sel = setup.playerIds.map((id, k) => `<li class="prow"><div class="prow-main">${avatar(nameOf(id))}
+      <div class="prow-txt"><span class="prow-n">${esc(nameOf(id))}</span>${k === 0 ? '<span class="prow-s">Donne en premier</span>' : ''}</div>
+      ${k > 0 ? `<button class="icon-btn plain" data-act="setupUp" data-k="${k}" aria-label="Faire monter ${esc(nameOf(id))}"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ''}
+      <button class="icon-btn plain" data-act="setupRemove" data-k="${k}" aria-label="Retirer ${esc(nameOf(id))}">${icon('close', 20)}</button></div></li>`).join('');
+    const sugg = recentPlayers(db).filter(p => !setup.playerIds.includes(p.id)).slice(0, 6);
+    const full = n >= mod.players.max;
+    const body = `
+      <section class="section"><div class="section-h"><h2 class="label">Joueurs · ${n}</h2><span class="hint">${mod.players.min} à ${mod.players.max}</span></div>
+        ${n ? `<ul class="card list">${sel}</ul>` : ''}
+        ${full ? '' : `<div class="add-row"><input class="field" id="np" type="text" maxlength="16" autocomplete="off" autocapitalize="words" enterkeyhint="done"
+            placeholder="Nom d’un joueur" aria-label="Nom d’un joueur" data-input="setupName" data-enter="setupAdd" value="${esc(setup.typing || '')}">
+          <button class="icon-btn" data-act="setupAdd" aria-label="Ajouter le joueur">${icon('plus')}</button></div>
+          ${sugg.length ? `<div class="row-extra" style="padding-left:0">${sugg.map(p => `<button class="chip add" data-act="setupPick" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : ''}`}
+      </section>
+      <section class="section"><h2 class="label">Partie</h2>
+        <ul class="card list">
+          <li><button class="row" data-act="setupFormat"><div class="row-txt"><span class="row-t">${mod.formats.find(f => f.id === setup.format).name}</span>
+            <span class="row-s">${mod.formatSummary(setup, Math.max(n, mod.players.min))}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>
+          <li><button class="row" data-act="setupOptions"><div class="row-txt"><span class="row-t">Règles et variantes</span>
+            <span class="row-s">${mod.optionsSummary(setup.options, n)}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>
+        </ul></section>`;
+    const ok = n >= mod.players.min && n <= mod.players.max;
+    return { title: mod.name, sub: 'Nouvelle partie', back: GAMES.length > 1 ? { to: 'newgamePick' } : { to: 'home' }, body,
+      bar: `<button class="btn btn-primary" data-act="startGame" ${ok ? '' : 'disabled'}>${ok ? `Commencer · ${plural(n, 'joueur', 'joueurs')}` : `Ajoutez au moins ${mod.players.min} joueurs`}</button>` };
+  },
+
+  game(p, opts) {
+    const g = gameById(p.id);
+    if (!g) return SCREENS.home();
+    if (g.status === 'done') { route = { name: 'end', params: { id: g.id } }; return SCREENS.end(route.params, opts); }
+    const mod = modOf(g), pr = mod.progress(g);
+    const rk = rankCard(g, p.animate);
+    p.animate = false;
+    return {
+      title: mod.name, sub: pr.label, back: { to: 'home', label: 'Accueil' },
+      right: `<button class="icon-btn" data-act="menu" aria-label="Options de la partie">${icon('more')}</button>`,
+      body: `<div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="${pr.total}" aria-valuenow="${played(g)}"><i style="width:${played(g) / pr.total * 100}%"></i></div>
+        ${rk.html}${scoreSheet(g)}`,
+      bar: `<button class="btn btn-primary" data-act="go" data-to="round" data-id="${g.id}">${mod.nextLabel(g)} ${icon('next', 20)}</button>`,
+      after: rk.after
+    };
+  },
+
+  round(p) {
+    const g = gameById(p.id);
+    if (!g || g.status === 'done') return SCREENS.home();
+    const s = modOf(g).roundScreen(api, g);
+    s.back = { to: 'game', id: g.id, label: 'Classement' };
     return s;
-  }catch(e){return null}
-}
-function wipe(){try{localStorage.removeItem(K)}catch(e){}}
+  },
 
-/* ═══════════════ CALCUL DES POINTS (délégué au module de jeu) ═══════════════ */
-const bonusOf=e=>SK.bonusOf(e,state);
-const scoreOf=(e,cards)=>SK.scoreEntry(e,cards,state);
-function playedCount(){return state.done ? state.rounds.length : state.cur}
-// Totaux sur les manches validées uniquement (bug 3 : les manches à venir étaient comptées)
-function totals(upto){
-  return SK.totals(state.rounds,state,state.players.length,upto===undefined?playedCount():upto);
-}
-const cardsFor=c=>SK.cardsFor(c,state,state.players.length);
-const sign=v=>(v>=0?'+':'')+v;
+  end(p) {
+    const g = gameById(p.id);
+    if (!g) return SCREENS.home();
+    const mod = modOf(g), names = namesOf(g), t = gameTotals(g), w = winners(mod, g);
+    const tie = w.length > 1;
+    const celebrate = p.celebrate; p.celebrate = false;
+    const body = `
+      <section class="win">${celebrate ? '<div class="conf" id="conf"></div>' : ''}
+        ${icon('crown', 40)}
+        <span class="win-k">${mod.name} · ${plural(g.rounds.length, 'manche', 'manches')}</span>
+        <h2 class="win-n">${tie ? `${w.map(i => esc(names[i])).join(' et ')}` : `${esc(names[w[0]])} gagne`}</h2>
+        <span class="win-p">${tie ? `Égalité à ${t[w[0]]} points — rejouez une manche !` : `${t[w[0]]} points`}</span>
+      </section>
+      ${rankCard(g, false).html}
+      <div class="tiles">${mod.endStats(g, names).map(s => `<div class="tile"><b>${s.v}</b><span>${s.l}</span></div>`).join('')}</div>
+      ${scoreSheet(g)}`;
+    return {
+      title: 'Fin de partie', sub: `${mod.name} · ${shortDate(g.endedAt || g.startedAt)}`, back: { to: 'home', label: 'Accueil' },
+      right: `<button class="icon-btn" data-act="menu" aria-label="Options de la partie">${icon('more')}</button>`,
+      body,
+      bar: `<button class="btn btn-primary" data-act="rematch">Revanche</button>`,
+      after: celebrate ? confetti : null
+    };
+  },
 
-/* ═══════════════ UTILITAIRES UI ═══════════════ */
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms||8)}catch(e){}}
-function av(i,cls,isD){
-  const a=AV[i%8];
-  return `<div class="pav ${cls||''}" style="background:${a.c}1f;border-color:${a.c}55">${a.i}${isD?'<span class="dealer-dot">D</span>':''}</div>`;
-}
-function ripple(el,ev){
-  if(!el)return;
-  const r=document.createElement('div'); r.className='ripple';
-  const b=el.getBoundingClientRect();
-  const x=(ev&&ev.clientX)||b.left+b.width/2, y=(ev&&ev.clientY)||b.top+b.height/2;
-  r.style.left=(x-b.left)+'px'; r.style.top=(y-b.top)+'px';
-  el.appendChild(r); setTimeout(()=>r.remove(),650);
-}
-function toast(msg,ms){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
-  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),ms||2200);
-}
-function shake(el){if(!el)return;el.style.animation='none';void el.offsetWidth;el.style.animation='shake .4s ease'}
-function tick(el){if(!el)return;el.classList.remove('tick');void el.offsetWidth;el.classList.add('tick')}
-function goto(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
-  document.getElementById(id).classList.add('on');
-  window.scrollTo({top:0,behavior:'instant'});
-}
-function activeScreen(){const s=document.querySelector('.screen.on');return s?s.id:null}
-function openSheet(id){
-  document.getElementById('scrim').classList.add('on');
-  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on'));
-  const sh=document.getElementById(id); sh.classList.add('on'); sh.scrollTop=0;
-  document.body.style.overflow='hidden';
-}
-function closeSheet(){
-  document.getElementById('scrim').classList.remove('on');
-  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on'));
-  document.body.style.overflow='';
-}
-function scrimTap(){if(draft)cancelEdit();else closeSheet()}
-function stepper(val,minus,plus,id,big){
-  return `<div class="step${big?'':' step-sm'}">
-    <button class="step-b" onclick="${minus}" aria-label="Moins">−</button>
-    <div class="step-v" ${id?`id="${id}"`:''}>${val}</div>
-    <button class="step-b" onclick="${plus}" aria-label="Plus">＋</button></div>`;
-}
+  players() {
+    const list = recentPlayers(db);
+    const body = list.length
+      ? `<ul class="card list">${list.map(p => {
+          const s = playerStats(db, getGame, p.id);
+          return `<li><button class="row" data-act="player" data-id="${p.id}">${avatar(p.name)}
+            <div class="row-txt"><span class="row-t">${esc(p.name)}</span><span class="row-s">${s.played ? `${plural(s.played, 'partie', 'parties')} · ${plural(s.wins, 'victoire', 'victoires')}` : 'Aucune partie terminée'}</span></div>
+            ${icon('chevron', 18, 'class="ic chev"')}</button></li>`;
+        }).join('')}</ul>`
+      : `<div class="empty"><p>Les joueurs ajoutés à une partie apparaissent ici, avec leurs statistiques.</p></div>`;
+    return { title: 'Joueurs', body, tab: 'players',
+      right: `<button class="icon-btn" data-act="playerNew" aria-label="Ajouter un joueur">${icon('plus')}</button>` };
+  },
 
-/* ═══════════════ SETUP ═══════════════ */
-function renderPlayers(){
-  const d=document.getElementById('plist'); d.innerHTML='';
-  state.players.forEach((p,i)=>{
-    const row=document.createElement('div'); row.className='prow';
-    row.innerHTML=`${av(i)}<input type="text" maxlength="16" placeholder="Matelot ${i+1}" value="${esc(p)}" oninput="state.players[${i}]=this.value.replace(/[<>]/g,'')">`
-      +(state.players.length>2?`<button class="rm" onclick="delPlayer(${i})" aria-label="Retirer">✕</button>`:'');
-    d.appendChild(row);
-  });
-  document.getElementById('pcount').textContent=state.players.length+'/8';
-}
-function addPlayer(){
-  if(state.players.length>=8){toast('Maximum 8 joueurs');return}
-  state.players.push(''); renderPlayers(); buzz();
-  const inp=document.querySelectorAll('#plist input'); inp[inp.length-1].focus();
-  renderModes();
-}
-function delPlayer(i){
-  if(state.players.length<=2){toast('Minimum 2 joueurs');return}
-  state.players.splice(i,1); renderPlayers(); renderModes(); buzz();
-}
-function renderModes(){
-  const d=document.getElementById('modes'); d.innerHTML='';
-  Object.keys(MODES).forEach(k=>{
-    const m=MODES[k], on=state.mode===k;
-    const cards=m.c.map(cardsFor);
-    const capped=m.c.some((c,i)=>cards[i]<c);
-    d.innerHTML+=`<div class="opt ${on?'on':''}" onclick="setMode('${k}')">
-      <span class="opt-icon">${m.i}</span>
-      <div class="opt-body"><div class="opt-t">${m.n}</div>
-      <div class="opt-d">${m.c.length} manche${m.c.length>1?'s':''} · ${cards.join(' · ')} carte${cards[0]>1?'s':''}${capped?' <b style="color:var(--gold)">(ajusté au nb de joueurs)</b>':''}</div></div>
-      <div class="opt-chk">✓</div></div>`;
-  });
-  document.getElementById('mode-desc').textContent=MODES[state.mode].d;
-}
-function setMode(k){state.mode=k;renderModes();buzz()}
-function setScoring(s){
-  state.scoring=s;
-  document.getElementById('sg-sk').classList.toggle('on',s==='sk');
-  document.getElementById('sg-rascal').classList.toggle('on',s==='rascal');
-  document.getElementById('rascal-opts').style.display=s==='rascal'?'block':'none';
-  document.getElementById('scoring-desc').innerHTML = s==='sk'
-    ? 'Système classique, taillé pour les audacieux. Vous ne gagnez des points que si votre mise est exacte — sinon vous en perdez.'
-    : 'Système équilibré : chaque manche vaut 10 points par carte distribuée pour tout le monde. Mise exacte = tous les points, écart de 1 = la moitié, écart de 2 ou plus = rien.';
-  buzz();
-}
-function toggleOpt(key,btn){state[key]=!state[key];btn.classList.toggle('on',state[key]);renderModes();buzz()}
-function toggleDark(btn){
-  const on=!document.body.classList.contains('dark');
-  document.body.classList.toggle('dark',on);
-  btn.classList.toggle('on',on);
-  try{localStorage.setItem('sk.dark',on?'1':'0')}catch(e){}
-  document.querySelector('meta[name=theme-color]').setAttribute('content',on?'#0d1824':'#0a1520');
-  buzz();
-}
-function renderResume(){
-  const saved=load(); const box=document.getElementById('resume-box');
-  if(!saved||!saved.rounds||!saved.rounds.length||saved.done){box.innerHTML='';return}
-  const t=saved.rounds.length, m=MODES[saved.mode];
-  box.innerHTML=`<div class="card" style="border-color:var(--gold);box-shadow:0 0 0 3px var(--glow)">
-    <div class="clabel">⏳ Partie en cours</div>
-    <div style="font-size:15px;font-weight:700;margin-bottom:3px">${saved.players.map(esc).join(' · ')}</div>
-    <div style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:12px">${m.i} ${m.n} — manche ${Math.min(saved.cur+1,t)} sur ${t}</div>
-    <div class="btn-row">
-      <button class="btn btn-gold btn-sm" onclick="resumeGame()">Reprendre</button>
-      <button class="btn btn-line btn-sm" onclick="wipe();renderResume();toast('Partie effacée')">Abandonner</button>
-    </div></div>`;
-}
-function resumeGame(){
-  state=load(); bonusOpen={};
-  if(state.done) showEnd(true); else if(state.rounds[state.cur]) renderBid(); else renderScores();
-  toast('Partie reprise ⚓');
-}
-function buildRounds(){
-  state.rounds=MODES[state.mode].c.map(c=>SK.makeRound(cardsFor(c),state.players.length));
-}
-function startGame(ev){
-  ripple(ev.currentTarget,ev); buzz(14);
-  state.players=state.players.map((p,i)=>(p||'').trim().slice(0,16)||`Matelot ${i+1}`);
-  if(state.players.length===2) state.loot=false; // pas de Butin à 2 joueurs (règle officielle)
-  buildRounds();
-  state.cur=0; state.dealer=0; state.done=false; state.started=Date.now();
-  bonusOpen={}; save();
-  setTimeout(renderBid,130);
-}
-
-/* ═══════════════ BARRES DE MANCHE ═══════════════ */
-function roundBar(id,idx){
-  const R=state.rounds[idx], n=state.rounds.length, m=MODES[state.mode];
-  document.getElementById(id).innerHTML=
-   `<div class="rb-l">
-      <div class="rb-lbl">Manche</div>
-      <div class="rb-cards">${R.cards} carte${R.cards>1?'s':''} par joueur</div>
-      <span class="rb-chip">${m.i} ${m.n}${state.scoring==='rascal'?' · 🎩 Rascal':''}</span>
-    </div>
-    <div class="rb-r"><div class="rb-num">${idx+1}<small> / ${n}</small></div></div>`;
-}
-function progress(id,done){
-  document.getElementById(id).style.width=(done/state.rounds.length*100)+'%';
-}
-function renderDots(id,idx){
-  const d=document.getElementById(id); if(!d)return;
-  d.innerHTML=state.rounds.map((r,i)=>
-    `<div class="dot ${i<state.cur?'done':i===idx?'cur':''}" ${i<state.cur?`onclick="editRound(${i})"`:''} title="Manche ${i+1}"></div>`).join('');
-}
-function curRound(){return state.rounds[state.cur]}
-
-/* ═══════════════ ÉCRAN MISES ═══════════════ */
-function renderBid(){
-  const idx=state.cur, R=state.rounds[idx];
-  roundBar('bid-bar',idx); progress('bid-prog',idx+1); renderDots('bid-dots',idx);
-  document.getElementById('bid-tbsub').textContent = `Manche ${idx+1} sur ${state.rounds.length}`;
-  document.getElementById('bid-note').innerHTML = state.players.length===2
-    ? "👻 <b>Partie à deux :</b> distribuez trois paquets — le troisième est celui de Barbe Grise. Il ne mise pas et ne marque pas de points, mais il peut remporter des plis."
-    : "Poing fermé = mise de <b>0</b>. Frappez trois fois la table et criez « <b>Yo-ho-ho !</b> » — au troisième coup, tout le monde révèle sa mise en même temps.";
-
-  const t=totals(idx);
-  const d=document.getElementById('bid-list'); d.innerHTML='';
-  state.players.forEach((p,i)=>{
-    const e=R.e[i], isD=(state.dealer+idx)%state.players.length===i;
-    const quick=Array.from({length:Math.min(R.cards,6)+1},(_,k)=>k);
-    const el=document.createElement('div'); el.className='pblock';
-    el.innerHTML=`<div class="plr">
-      ${av(i,'',isD)}
-      <div class="plr-b"><div class="plr-n">${esc(p)}</div>
-        <div class="plr-s">${isD?'🎴 Donneur · ':''}Total <b>${t[i]}</b></div></div>
-      ${stepper(e.bid,`stepBid(${i},-1,this)`,`stepBid(${i},1,this)`,'bv'+i,true)}</div>
-      <div class="qbid" id="qb${i}">${quick.map(k=>`<button class="qb ${e.bid===k?'on':''}" onclick="setBid(${i},${k})">${k}</button>`).join('')}${R.cards>6?`<button class="qb ${e.bid>6?'on':''}" onclick="toast('Utilise les boutons + et −')">7+</button>`:''}</div>
-      ${state.wager?wagerRow(i,e,'setWager'):''}
-      ${(state.scoring==='rascal'&&state.cannonball)?shotRow(i,e,'setShot'):''}`;
-    d.appendChild(el);
-  });
-  updateBidSum();
-  goto('sc-bid');
-}
-function wagerRow(i,e,fn){
-  return `<div class="mini-seg" ${fn==='setWager'?`id="wg${i}"`:''}>
-    ${[0,10,20].map(v=>`<div class="ms ${e.wager===v?'on':''}" onclick="${fn}(${i},${v})">${v?'🎲 Parier '+v:'Pas de pari'}</div>`).join('')}</div>`;
-}
-function shotRow(i,e,fn){
-  return `<div class="mini-seg" ${fn==='setShot'?`id="sh${i}"`:''}>
-    <div class="ms ${e.shot==='chev'?'on':''}" onclick="${fn}(${i},'chev')">🖐️ Chevrotine ×10</div>
-    <div class="ms ${e.shot==='boul'?'on':''}" onclick="${fn}(${i},'boul')">✊ Boulet ×15</div></div>`;
-}
-function stepBid(i,d,btn){setBid(i,curRound().e[i].bid+d);if(btn)ripple(btn)}
-function setBid(i,val){
-  const R=curRound(), e=R.e[i];
-  e.bid=Math.max(0,Math.min(R.cards,val));
-  const v=document.getElementById('bv'+i); v.textContent=e.bid; tick(v);
-  refreshQuick(i); updateBidSum(); buzz();
-}
-function refreshQuick(i){
-  const e=curRound().e[i], q=document.getElementById('qb'+i); if(!q)return;
-  [...q.children].forEach(b=>{
-    const n=parseInt(b.textContent);
-    b.classList.toggle('on', !isNaN(n) ? n===e.bid : e.bid>6);
-  });
-}
-function setWager(i,v){curRound().e[i].wager=v;const w=document.getElementById('wg'+i);[...w.children].forEach((c,k)=>c.classList.toggle('on',[0,10,20][k]===v));buzz()}
-function setShot(i,s){curRound().e[i].shot=s;const w=document.getElementById('sh'+i);[...w.children].forEach((c,k)=>c.classList.toggle('on',['chev','boul'][k]===s));buzz()}
-function updateBidSum(){
-  const R=curRound(), sum=R.e.reduce((a,e)=>a+e.bid,0);
-  const diff=sum-R.cards;
-  document.getElementById('bid-sum').textContent = `Total misé : ${sum} / ${R.cards}` +
-    (diff===0?' — pile poil':diff>0?` — surmisé de ${diff}`:` — sous-misé de ${-diff}`);
-  document.getElementById('bid-dealer').textContent='🎴 '+state.players[(state.dealer+state.cur)%state.players.length];
-}
-function bidBack(){
-  if(state.cur>0){renderScores();return}
-  if(confirm('Retourner à la configuration ? La partie en cours sera perdue.')){wipe();resetSetup()}
-}
-function confirmBids(ev){ripple(ev.currentTarget,ev);buzz(14);save();setTimeout(renderTricks,110)}
-
-/* ═══════════════ ÉCRAN PLIS ═══════════════ */
-function renderTricks(){
-  const idx=state.cur, R=state.rounds[idx];
-  roundBar('tr-bar',idx); progress('tr-prog',idx+1);
-  document.getElementById('tr-tbsub').textContent = `Manche ${idx+1} sur ${state.rounds.length}`;
-  document.getElementById('tr-destroyed').innerHTML = destroyedCard(R,'stepDestroyed');
-
-  const d=document.getElementById('tr-list'); d.innerHTML='';
-  state.players.forEach((p,i)=>{
-    const e=R.e[i], nb=SK.bonusCount(e,state);
-    const open = bonusOpen[i] || nb>0;
-    const el=document.createElement('div'); el.className='pblock';
-    el.innerHTML=`<div class="plr">
-      ${av(i)}
-      <div class="plr-b"><div class="plr-n">${esc(p)}</div>
-        <div class="plr-s">Misé <b>${e.bid}</b>${state.wager&&e.wager?` · 🎲 ${e.wager}`:''}${state.scoring==='rascal'&&state.cannonball?` · ${e.shot==='boul'?'✊':'🖐️'}`:''} · <span class="pv" id="pv${i}"></span></div></div>
-      ${stepper(e.tricks,`stepTrick(${i},-1,this)`,`stepTrick(${i},1,this)`,'tv'+i,true)}</div>
-      <div class="bsec">
-        <div class="bhead" onclick="toggleBonus(${i})">
-          🏆 Bonus capturés
-          <span class="bcount ${nb?'':'zero'}" id="bc${i}">${nb?('+'+bonusOf(e)):'0'}</span>
-          <span id="ba${i}">${open?'▲':'▼'}</span>
-        </div>
-        <div class="bgrid ${open?'':'hide'}" id="bg${i}">
-          ${SK.activeBonuses(state).map(b=>bchip(i,b,e[b.key],'stepBonus')).join('')}
-        </div>
-      </div>`;
-    d.appendChild(el);
-  });
-  updateTrickSum();
-  goto('sc-tricks');
-}
-function destroyedCard(R,fn){
-  const mx=SK.maxDestroyed(state); if(!mx)return '';
-  const names=[state.kraken?'🐙 Kraken':'',state.whale?'🐋 Baleine blanche':''].filter(Boolean).join(' / ');
-  return `<div class="card flush destroyed">
-    <div class="plr" style="padding:0;border:none">
-      <div class="pav" style="background:var(--card2);border-color:var(--border)">🌊</div>
-      <div class="plr-b"><div class="plr-n">Plis détruits</div><div class="plr-s">${names} — remportés par personne</div></div>
-      ${stepper(R.destroyed||0,`${fn}(-1)`,`${fn}(1)`,fn==='stepDestroyed'?'dv':null,true)}</div></div>`;
-}
-function bchip(i,b,v,fn){
-  const live=fn==='stepBonus'; // les identifiants ne servent qu'à l'écran des plis
-  return `<div class="bchip ${v>0?'on':''}" ${live?`id="bx${b.key}${i}"`:''}>
-    <span class="bi">${b.icon}</span>
-    <div class="bd"><div class="bt">${b.label}</div><div class="bp">${b.unit}</div></div>
-    <div class="bstep">
-      <button class="bb" onclick="${fn}(${i},'${b.key}',-1)" aria-label="Moins">−</button>
-      <span class="bv" ${live?`id="b${b.key}${i}"`:''}>${v}</span>
-      <button class="bb" onclick="${fn}(${i},'${b.key}',1)" aria-label="Plus">＋</button>
-    </div></div>`;
-}
-function toggleBonus(i){
-  const g=document.getElementById('bg'+i), a=document.getElementById('ba'+i);
-  const hidden=g.classList.toggle('hide');
-  a.textContent=hidden?'▼':'▲'; bonusOpen[i]=!hidden; buzz();
-}
-function stepTrick(i,d,btn){
-  const R=curRound(), e=R.e[i];
-  e.tricks=Math.max(0,Math.min(R.cards,e.tricks+d));
-  const v=document.getElementById('tv'+i); v.textContent=e.tricks; tick(v);
-  updateTrickSum(); buzz(); if(btn)ripple(btn);
-}
-function stepDestroyed(d){
-  const R=curRound();
-  R.destroyed=Math.max(0,Math.min(Math.min(SK.maxDestroyed(state),R.cards),(R.destroyed||0)+d));
-  const v=document.getElementById('dv'); v.textContent=R.destroyed; tick(v);
-  updateTrickSum(); buzz();
-}
-function bumpBonus(e,k,d){
-  const b=SK.BONUSES.find(x=>x.key===k);
-  e[k]=Math.max(0,Math.min(b.max,(e[k]||0)+d));
-}
-function stepBonus(i,k,d){
-  const e=curRound().e[i];
-  bumpBonus(e,k,d);
-  document.getElementById('b'+k+i).textContent=e[k];
-  document.getElementById('bx'+k+i).classList.toggle('on',e[k]>0);
-  const nb=SK.bonusCount(e,state), c=document.getElementById('bc'+i);
-  c.textContent=nb?('+'+bonusOf(e)):'0'; c.classList.toggle('zero',!nb);
-  updateTrickSum(); buzz();
-}
-function trickStatus(R){
-  const c=SK.checkTricks(R,state,state.players.length);
-  const pl=n=>`${n} pli${n>1?'s':''}`;
-  if(!c.ok) return {ok:false,html:`⚠️ ${c.msg}`};
-  let h=`✅ ${pl(c.sum)} remporté${c.sum>1?'s':''}`;
-  if(c.destroyed) h+=` + ${c.destroyed} détruit${c.destroyed>1?'s':''}`;
-  if(c.ghost&&c.rest>0) h+=` · 👻 ${pl(c.rest)} pour Barbe Grise`;
-  return {ok:true,html:h+` — ${c.cards} au total`};
-}
-function updateTrickSum(){
-  const R=curRound(), st=trickStatus(R), el=document.getElementById('tr-sum');
-  el.innerHTML=st.html; el.classList.toggle('ok',st.ok); el.classList.toggle('ko',!st.ok);
-  // aperçu des points de la manche pour chaque joueur
-  state.players.forEach((p,i)=>{
-    const s=scoreOf(R.e[i],R.cards), pv=document.getElementById('pv'+i);
-    if(pv){pv.textContent=`${sign(s.pts)} pts`;pv.className='pv '+(s.pts>=0?'p':'n')}
-  });
-}
-function confirmTricks(ev){
-  const R=curRound();
-  if(!SK.checkTricks(R,state,state.players.length).ok){
-    toast(SK.checkTricks(R,state,state.players.length).msg);
-    shake(document.getElementById('tr-sum')); buzz([30,40,30]); return;
+  history() {
+    const list = db.games.slice().sort((a, b) => b.startedAt - a.startedAt);
+    return { title: 'Historique', sub: plural(list.length, 'partie', 'parties'), back: { to: 'home', label: 'Accueil' },
+      body: list.length ? `<ul class="card list">${list.map(gameRow).join('')}</ul>` : '<div class="empty"><p>Aucune partie.</p></div>' };
   }
-  ripple(ev.currentTarget,ev); buzz(16);
-  state.cur++; save();
-  setTimeout(()=>renderScores(true),110);
-}
+};
+SCREENS.newgamePick = () => { if (setup) setup.gameId = null; route = { name: 'newgame', params: {} }; return SCREENS.newgame(); };
 
-/* ═══════════════ ÉCRAN SCORES ═══════════════ */
-function ranking(){
-  const t=totals(), last=playedCount()-1;
-  const prev = last>0 ? totals(last) : state.players.map(()=>0);
-  return state.players.map((p,i)=>({p,i,sc:t[i],dl:t[i]-prev[i]})).sort((a,b)=>b.sc-a.sc);
-}
-function renderScores(animate){
-  const last = playedCount()-1;
-  const R = last>=0 ? state.rounds[last] : null;
-  const n=state.rounds.length;
-
-  document.getElementById('sc-title').textContent = 'Classement';
-  document.getElementById('sc-tbsub').textContent = `${last+1} manche${last>0?'s':''} sur ${n} · ${MODES[state.mode].i} ${MODES[state.mode].n} · ${state.scoring==='rascal'?'Rascal':'Skull King'}`;
-  progress('sc-prog',last+1);
-
-  // Le total n'est affiché qu'ici (bug 3) ; la feuille de score ne montre que les points par manche.
-  const rows=ranking();
-  let h=`<div class="card rank"><div class="sh">
-      <div style="width:30px">#</div><div style="flex:1;padding-left:8px">Joueur</div>
-      <div class="s-dl">${R?`M${last+1}`:''}</div><div class="s-tt">Total</div></div>`;
-  rows.forEach((r,k)=>{
-    const s2 = R?scoreOf(R.e[r.i],R.cards):null;
-    const cls = animate&&s2 ? (s2.exact?'hit':'miss') : '';
-    const rk = k>0 && r.sc===rows[k-1].sc ? '=' : (r.sc===rows[0].sc?'👑':k+1);
-    h+=`<div class="sr ${r.sc===rows[0].sc?'lead':''} ${cls}">
-      <div class="s-rk">${rk}</div>
-      <div class="s-nm">${av(r.i,'sm')}<span>${esc(r.p)}</span></div>
-      <div class="s-dl ${r.dl>=0?'p':'n'}">${R?sign(r.dl):''}</div>
-      <div class="s-tt">${r.sc}</div></div>`;
-  });
-  document.getElementById('sc-rank').innerHTML=h+'</div>';
-
-  h='';
-  if(R){
-    h+=`<div class="card"><div class="clabel">📜 Détail de la manche ${last+1}${R.destroyed?` · 🌊 ${R.destroyed} pli${R.destroyed>1?'s':''} détruit${R.destroyed>1?'s':''}`:''}<span class="cl-act" onclick="editRound(${last})">✏️ Modifier</span></div>`;
-    state.players.forEach((p,i)=>{h+=recap(R,i)});
-    h+='</div>';
+function confetti() {
+  const box = document.getElementById('conf'); if (!box) return;
+  const cols = ['#E3B04B', '#F3EFE6', '#C9D1D8'];
+  for (let k = 0; k < 28; k++) {
+    const c = document.createElement('i');
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = cols[k % cols.length];
+    c.style.animationDelay = (Math.random() * .6) + 's';
+    c.style.animationDuration = (1.2 + Math.random() * .8) + 's';
+    box.appendChild(c);
   }
-  h+=`<div class="card"><div class="clabel">📋 Feuille de score<span class="cl-act" onclick="openHistory()">Modifier une manche ›</span></div><div class="tw">${scoreTable(false)}</div></div>`;
-  document.getElementById('sc-body').innerHTML=h;
+}
 
-  const nb=document.getElementById('next-btn');
-  if(state.cur>=n){nb.innerHTML='👑 Voir le classement final →';nb.onclick=(e)=>{ripple(nb,e);setTimeout(()=>showEnd(),120)}}
-  else{nb.innerHTML=`Manche ${state.cur+1} — ${state.rounds[state.cur].cards} carte${state.rounds[state.cur].cards>1?'s':''} →`;nb.onclick=(e)=>{ripple(nb,e);buzz(12);setTimeout(renderBid,120)}}
+/* ═══════════════ Modification d'une manche validée ═══════════════ */
+function openEditor(gameId, r) {
+  const g = gameById(gameId);
+  if (!g || r >= played(g)) { toast('Cette manche n’a pas encore été jouée'); return; }
+  draft = { gameId, r, round: JSON.parse(JSON.stringify(g.rounds[r])), open: {} };
+  renderEditor();
+}
+function renderEditor() {
+  if (!draft) return;
+  const g = gameById(draft.gameId), mod = modOf(g);
+  const preview = { ...g, rounds: g.rounds.map((x, k) => k === draft.r ? draft.round : x) };
+  draft.after = totals(mod, preview);
+  const { body, status } = mod.editorBody(api, g, draft);
+  openSheet({
+    title: `Modifier la manche ${draft.r + 1}`,
+    sub: `${mod.roundHead(g, draft.r).long} · les totaux seront recalculés`,
+    body,
+    foot: `<div class="tally ${status.ok ? 'ok' : 'ko'}" id="ed-tally" role="status">${status.html}</div>
+      <div class="btn-row"><button class="btn btn-secondary" data-act="sheetClose">Annuler</button>
+      <button class="btn btn-primary" data-act="edSave">Enregistrer</button></div>`,
+    onClose: () => { draft = null; }
+  });
+  applyTick();
+}
 
-  goto('sc-scores');
-  if(animate&&R) rows.forEach((r,k)=>setTimeout(()=>flyPts(r.dl,k),180+k*90));
-  save();
+/* ═══════════════ Feuilles : réglages, menu, options… ═══════════════ */
+function applyTheme() {
+  const t = db.prefs.theme;
+  if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => {
+    m.content = t === 'dark' ? '#161D23' : t === 'light' ? '#F5F2EB' : (m.media.includes('dark') ? '#161D23' : '#F5F2EB');
+  });
 }
-function recap(R,i){
-  const e=R.e[i], s=scoreOf(e,R.cards);
-  return `<div class="rec"><div class="rec-h">${av(i,'xs')}
-    <span class="rec-n">${esc(state.players[i])}</span>
-    <span class="rec-p ${s.pts>=0?'p':'n'}">${sign(s.pts)}</span></div>
-    <div class="pills">
-      <span class="pill ${s.exact?'ok':'ko'}">Misé ${e.bid} · Fait ${e.tricks}${s.exact?' ✓':(s.gap===1&&state.scoring==='rascal'?' ~':' ✕')}</span>
-      ${s.bonus>0?`<span class="pill bon">Bonus +${s.bonus}</span>`:(s.rawBonus>0?`<span class="pill">Bonus perdu −${s.rawBonus}</span>`:'')}
-      ${SK.activeBonuses(state).filter(b=>e[b.key]).map(b=>`<span class="pill">${b.icon}${b.max>1?'×'+e[b.key]:''}</span>`).join('')}
-      ${state.wager&&e.wager?`<span class="pill ${s.wager>=0?'ok':'ko'}">🎲 ${sign(s.wager)}</span>`:''}
-      ${state.scoring==='rascal'&&state.cannonball?`<span class="pill">${e.shot==='boul'?'✊ Boulet':'🖐️ Chevrotine'}</span>`:''}
-    </div></div>`;
+
+function settingsSheet() {
+  openSheet({
+    title: 'Réglages',
+    body: `<section class="section"><h3 class="label">Apparence</h3>
+        ${segmented([['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']], db.prefs.theme, 'theme', 'Thème')}</section>
+      <section class="section"><h3 class="label">Règles des jeux</h3>
+        <ul class="card list">${GAMES.map(m => `<li><button class="row" data-act="rules" data-game="${m.id}"><div class="row-txt"><span class="row-t">${m.name}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>`).join('')}</ul></section>
+      <section class="section"><h3 class="label">Données</h3>
+        <ul class="card list">
+          <li><button class="row" data-act="go" data-to="history"><div class="row-txt"><span class="row-t">Historique des parties</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>
+          <li><button class="row" data-act="export"><div class="row-txt"><span class="row-t">Exporter une sauvegarde</span><span class="row-s">Fichier à conserver en lieu sûr</span></div>${icon('share', 20, 'class="ic chev"')}</button></li>
+        </ul>
+        <button class="btn btn-danger" data-act="wipe">Effacer toutes les données</button></section>
+      <p class="hint center">Ardoise ${VERSION} · données enregistrées sur cet appareil uniquement</p>`
+  });
 }
-function flyPts(pts,idx){
-  const el=document.createElement('div');
-  el.className='fly '+(pts>=0?'p':'n');
-  el.textContent=sign(pts);
-  el.style.top=(170+idx*60)+'px';
-  document.body.appendChild(el);
-  setTimeout(()=>el.remove(),1150);
+
+function menuSheet() {
+  const g = gameById(route.params.id); if (!g) return;
+  const done = g.status === 'done';
+  openSheet({
+    title: modOf(g).name,
+    sub: namesOf(g).map(esc).join(', '),
+    body: `<ul class="card list">
+        <li><button class="row" data-act="rules" data-game="${g.gameId}">${icon('book')}<div class="row-txt"><span class="row-t">Règles du jeu</span></div></button></li>
+        <li><button class="row" data-act="share">${icon('share')}<div class="row-txt"><span class="row-t">Partager les scores</span></div></button></li>
+        ${played(g) ? `<li><button class="row" data-act="editList">${icon('edit')}<div class="row-txt"><span class="row-t">Modifier une manche</span></div></button></li>` : ''}
+      </ul>
+      <button class="btn btn-danger" data-act="deleteGame">${done ? 'Supprimer cette partie' : 'Abandonner la partie'}</button>`
+  });
 }
-// Feuille de score : une colonne par manche jouée (en-tête cliquable = modifier la manche).
-// showTotal : uniquement là où aucun classement n'affiche déjà le total.
-function scoreTable(showTotal){
-  const np=playedCount();
-  let h='<table class="tbl"><thead><tr><th class="nm">Joueur</th>';
-  for(let r=0;r<np;r++)h+=`<th class="th-ed" onclick="editRound(${r})">M${r+1}<br><span style="opacity:.6;font-weight:600">${state.rounds[r].cards}c ✏️</span></th>`;
-  if(showTotal)h+='<th class="tot">Total</th>';
-  h+='</tr></thead><tbody>';
-  const t=totals();
-  state.players.forEach((p,i)=>{
-    h+=`<tr><td class="nm"><div style="display:flex;align-items:center;gap:6px">${av(i,'xs')}<span class="tbl-n">${esc(p)}</span></div></td>`;
-    for(let r=0;r<np;r++){
-      const s=scoreOf(state.rounds[r].e[i],state.rounds[r].cards);
-      h+=`<td class="${s.pts>=0?'pos':'neg'}">${sign(s.pts)}</td>`;
+
+function editListSheet() {
+  const g = gameById(route.params.id), mod = modOf(g), names = namesOf(g);
+  const rows = Array.from({ length: played(g) }, (_, r) => r).reverse().map(r => {
+    const pts = mod.roundPoints(g, r);
+    return `<li><button class="row" data-act="edit" data-r="${r}"><div class="row-txt"><span class="row-t">Manche ${r + 1}</span>
+      <span class="row-s">${names.map((n, i) => `${esc(n)} ${sign(pts[i])}`).join(' · ')}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>`;
+  }).join('');
+  openSheet({ title: 'Modifier une manche', body: `<ul class="card list">${rows}</ul>` });
+}
+
+function formatSheet() {
+  const mod = getGame(setup.gameId), n = Math.max(setup.playerIds.length, mod.players.min);
+  openSheet({
+    title: 'Format',
+    body: `<ul class="card list">${mod.formats.map(f => `<li><button class="opt-row ${f.id === setup.format ? 'on' : ''}" style="width:100%;text-align:left" data-act="setFormat" data-v="${f.id}" role="radio" aria-checked="${f.id === setup.format}">
+      <span class="radio"></span><span class="row-txt"><span class="row-t">${f.name}</span><span class="row-s">${mod.formatSummary({ ...setup, format: f.id }, n)}</span></span></button></li>`).join('')}</ul>`
+  });
+}
+
+function optionsSheet() {
+  const mod = getGame(setup.gameId), o = setup.options, n = setup.playerIds.length;
+  const rows = mod.visibleOptions(o, n).map(d => d.type === 'choice'
+    ? `<section class="section"><h3 class="label">${d.label}</h3>${segmented(d.choices, o[d.key], 'setOpt', d.label, { k: d.key })}<p class="hint">${d.desc(o)}</p></section>`
+    : `<div class="opt-row"><div class="row-txt"><span class="row-t">${d.label}</span><span class="row-s" style="white-space:normal">${d.desc(o)}</span></div>${toggle(!!o[d.key], 'setOpt', { k: d.key }, d.label)}</div>`);
+  const first = rows.findIndex(r => r.startsWith('<div'));
+  const choices = rows.filter(r => r.startsWith('<section')).join('');
+  const toggles = rows.filter(r => r.startsWith('<div'));
+  openSheet({
+    title: 'Règles et variantes',
+    sub: 'Tout est désactivé par défaut : règles de base',
+    body: choices + (first >= 0 ? `<section class="section"><h3 class="label">Variantes</h3><div class="card list" style="padding:0 16px">${toggles.join('')}</div></section>` : ''),
+    foot: '<button class="btn btn-primary" data-act="sheetClose">OK</button>',
+    onClose: () => render()
+  });
+}
+
+function playerSheet(id) {
+  const p = playerById(id); if (!p) return;
+  const s = playerStats(db, getGame, id);
+  const inGames = db.games.some(g => g.playerIds.includes(id));
+  const byGame = Object.entries(s.byGame);
+  const max = Math.max(1, ...byGame.map(([, v]) => v.played));
+  openSheet({
+    title: esc(p.name),
+    body: `<div class="tiles"><div class="tile"><b>${s.played}</b><span>parties terminées</span></div>
+        <div class="tile"><b>${s.wins}</b><span>victoires</span></div><div class="tile"><b>${s.winRate} %</b><span>taux de victoire</span></div></div>
+      ${byGame.length ? `<section class="section"><h3 class="label">Par jeu</h3><div class="card pad bars">${byGame.map(([gid, v]) =>
+        `<div class="bar-row"><span style="width:96px">${(getGame(gid) || { name: gid }).name}</span><span class="track"><i style="width:${v.played / max * 100}%"></i></span><span class="num">${v.wins}/${v.played}</span></div>`).join('')}
+        </div><p class="hint">Victoires / parties</p></section>` : ''}
+      <section class="section"><h3 class="label">Nom</h3><div class="add-row">
+        <input class="field" id="pname" type="text" maxlength="16" value="${esc(p.name)}" aria-label="Nom du joueur" data-enter="playerRename" data-id="${id}">
+        <button class="icon-btn" data-act="playerRename" data-id="${id}" aria-label="Enregistrer le nom">${icon('check')}</button></div></section>
+      ${inGames ? '' : `<button class="btn btn-danger" data-act="playerDelete" data-id="${id}">Supprimer ce joueur</button>`}`
+  });
+}
+
+function shareText(g) {
+  const mod = modOf(g), names = namesOf(g), rows = ranking(mod, g);
+  return `${mod.name} — ${mod.progress(g).label}\n\n` + rows.map(r => `${r.rank}. ${names[r.i]} — ${r.total} pts`).join('\n') + '\n\nAvec Ardoise';
+}
+
+/* ═══════════════ API offerte aux modules de jeu ═══════════════ */
+const api = {
+  game: () => gameById(route.params.id),
+  names: namesOf,
+  totals: (g, upto) => gameTotals(g, upto),
+  save,
+  render: anim => render({ enter: !!anim }),
+  toast,
+  shake: id => shake(document.getElementById(id)),
+  sheet: o => { openSheet(o); applyTick(); },
+  draft: () => draft,
+  editorRefresh: renderEditor,
+  finishRound(g) {
+    const mod = modOf(g);
+    g.cur++; g.step = 'bid';
+    if (mod.isOver(g)) {
+      g.status = 'done'; g.endedAt = Date.now();
+      if (db.current === g.id) db.current = null;
+      save(); buzz(30);
+      go('end', { id: g.id, celebrate: true });
+    } else {
+      save(); buzz(16);
+      go('game', { id: g.id, animate: true });
     }
-    if(showTotal)h+=`<td class="tot">${t[i]}</td>`;
-    h+='</tr>';
-  });
-  return h+'</tbody></table>';
-}
-
-/* ═══════════════ MODIFICATION D'UNE MANCHE VALIDÉE (bug 2) ═══════════════
-   Tout se modifie sur une copie (mises, plis, bonus, paris, plis détruits) ;
-   « Enregistrer » remplace la manche et tous les totaux sont recalculés. */
-function editRound(i){
-  if(!state||i<0||i>=state.rounds.length){toast('Aucune manche à modifier');return}
-  if(i>=playedCount()){toast('Cette manche n’a pas encore été jouée');return}
-  draft={idx:i,R:JSON.parse(JSON.stringify(state.rounds[i]))};
-  buzz(12); renderEditor(); openSheet('sheet-edit');
-}
-function renderEditor(){
-  const {idx,R}=draft;
-  document.getElementById('ed-title').textContent=`✏️ Manche ${idx+1}`;
-  document.getElementById('ed-sub').textContent=`${R.cards} carte${R.cards>1?'s':''} par joueur · les totaux seront recalculés`;
-  const before=totals();
-  const after=SK.totals(state.rounds.map((x,k)=>k===idx?R:x),state,state.players.length,playedCount());
-  let h=destroyedCard(R,'edDestroyed');
-  state.players.forEach((p,i)=>{
-    const e=R.e[i], s=scoreOf(e,R.cards), diff=after[i]-before[i];
-    h+=`<div class="card ed-p">
-      <div class="plr" style="padding-top:0">
-        ${av(i)}
-        <div class="plr-b"><div class="plr-n">${esc(p)}</div>
-          <div class="plr-s">Total <b>${after[i]}</b>${diff?` <span class="${diff>0?'pos':'neg'}">(${sign(diff)})</span>`:''}</div></div>
-        <div class="rec-p ${s.pts>=0?'p':'n'}" style="font-size:20px">${sign(s.pts)}</div>
-      </div>
-      <div class="ed-row"><span class="ed-l">Mise</span>${stepper(e.bid,`edStep(${i},'bid',-1)`,`edStep(${i},'bid',1)`)}</div>
-      <div class="ed-row"><span class="ed-l">Plis remportés</span>${stepper(e.tricks,`edStep(${i},'tricks',-1)`,`edStep(${i},'tricks',1)`)}</div>
-      ${state.wager?wagerRow(i,e,'edSet'):''}
-      ${(state.scoring==='rascal'&&state.cannonball)?shotRow(i,e,'edShot'):''}
-      <div class="bgrid" style="margin-top:10px">${SK.activeBonuses(state).map(b=>bchip(i,b,e[b.key],'edBonus')).join('')}</div>
-    </div>`;
-  });
-  document.getElementById('ed-body').innerHTML=h;
-  const st=trickStatus(R), el=document.getElementById('ed-status');
-  el.innerHTML=st.html; el.className='ed-status tally '+(st.ok?'ok':'ko');
-}
-function edStep(i,k,d){
-  const e=draft.R.e[i]; e[k]=Math.max(0,Math.min(draft.R.cards,e[k]+d)); buzz(); renderEditor();
-}
-function edBonus(i,k,d){bumpBonus(draft.R.e[i],k,d);buzz();renderEditor()}
-function edSet(i,v){draft.R.e[i].wager=v;buzz();renderEditor()}
-function edShot(i,v){draft.R.e[i].shot=v;buzz();renderEditor()}
-function edDestroyed(d){
-  const R=draft.R;
-  R.destroyed=Math.max(0,Math.min(Math.min(SK.maxDestroyed(state),R.cards),(R.destroyed||0)+d));
-  buzz(); renderEditor();
-}
-function cancelEdit(){draft=null;closeSheet()}
-function commitEdit(ev){
-  const c=SK.checkTricks(draft.R,state,state.players.length);
-  if(!c.ok){toast(c.msg);shake(document.getElementById('ed-status'));buzz([30,40,30]);return}
-  ripple(ev&&ev.currentTarget,ev);
-  const idx=draft.idx;
-  state.rounds[idx]=draft.R; draft=null; save(); closeSheet(); buzz(16);
-  toast(`Manche ${idx+1} modifiée · totaux recalculés ✓`);
-  refreshScreen();
-}
-function refreshScreen(){
-  const s=activeScreen();
-  if(s==='sc-bid')renderBid();
-  else if(s==='sc-tricks')renderTricks();
-  else if(s==='sc-end')showEnd(true);
-  else renderScores();
-}
-
-/* ═══════════════ HISTORIQUE ═══════════════ */
-function openHistory(){
-  const n=playedCount();
-  let h='';
-  if(!n){h=`<div class="empty"><div class="empty-i">🗒️</div><div class="empty-t">Aucune manche jouée pour l'instant</div></div>`}
-  else{
-    h+=`<div class="card"><div class="clabel">📋 Feuille de score complète</div><div class="tw">${scoreTable(true)}</div></div>`;
-    h+=`<div class="card"><div class="clabel">✏️ Modifier une manche</div>`;
-    for(let r=n-1;r>=0;r--){
-      const R=state.rounds[r];
-      const sum=state.players.map((p,i)=>`${p.split(' ')[0]} ${sign(scoreOf(R.e[i],R.cards).pts)}`).join(' · ');
-      h+=`<div class="hrow" onclick="editRound(${r})">
-        <div class="hr-badge"><b>${r+1}</b><i>${R.cards} c.</i></div>
-        <div class="hr-b"><div class="hr-t">Manche ${r+1}${R.destroyed?' · 🌊'+R.destroyed:''}</div><div class="hr-s">${esc(sum)}</div></div>
-        <div class="hr-go">›</div></div>`;
-    }
-    h+='</div>';
   }
-  document.getElementById('hist-body').innerHTML=h;
-  openSheet('sheet-hist');
+};
+GAMES.forEach(m => on(m.actions(api)));
+
+/* ═══════════════ Actions ═══════════════ */
+function startSetup(gameId) {
+  const last = db.games.slice().sort((a, b) => b.startedAt - a.startedAt)[0];
+  const gid = gameId || (GAMES.length === 1 ? GAMES[0].id : null);
+  setup = { gameId: gid, playerIds: last ? last.playerIds.filter(playerById) : [], typing: '' };
+  if (gid) initSetupGame(gid, last);
+}
+function initSetupGame(gid, last) {
+  const mod = getGame(gid);
+  const same = last && last.gameId === gid;
+  setup.gameId = gid;
+  setup.format = same ? last.format : mod.defaultFormat;
+  setup.options = same ? { ...mod.defaultOptions(), ...last.options } : mod.defaultOptions();
+}
+function addSetupPlayer(id) {
+  const mod = getGame(setup.gameId);
+  if (setup.playerIds.includes(id)) { toast('Déjà dans la partie'); return false; }
+  if (setup.playerIds.length >= mod.players.max) { toast(`${mod.players.max} joueurs au maximum`); return false; }
+  setup.playerIds.push(id);
+  return true;
 }
 
-/* ═══════════════ MENU ═══════════════ */
-function openMenu(){
-  const adv=[state.wager?'🎲 Flambeur':'',state.loot?'💰 Butin':'',state.kraken?'🐙 Kraken':'',state.whale?'🐋 Baleine':''].filter(Boolean).join(' · ');
-  const h=`<div class="card">
-    <div class="clabel">Partie en cours</div>
-    <div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Type</div>
-      <div class="tgl-d">${MODES[state.mode].i} ${MODES[state.mode].n} — ${MODES[state.mode].d}</div></div></div>
-    <div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Décompte</div>
-      <div class="tgl-d">${state.scoring==='rascal'?'🎩 Les scores selon Rascal':'💀 Les scores selon Skull King'}${state.cannonball?' · Boulet de canon activé':''}</div></div></div>
-    ${adv?`<div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Cartes avancées</div><div class="tgl-d">${adv}</div></div></div>`:''}
-    <div class="tgl-row"><div class="tgl-body"><div class="tgl-t">Joueurs</div>
-      <div class="tgl-d">${state.players.map(esc).join(' · ')}</div></div></div>
-    <div class="tgl-row">
-      <div class="tgl-body"><div class="tgl-t">🌙 Thème sombre</div><div class="tgl-d">Confort de lecture en soirée</div></div>
-      <button class="tgl ${document.body.classList.contains('dark')?'on':''}" onclick="toggleDark(this)"></button>
-    </div>
-  </div>
-  <button class="btn btn-line" onclick="closeSheet();openRules()">📖 Règles officielles</button>
-  <button class="btn btn-line" style="margin-top:9px" onclick="closeSheet();openHistory()">📊 Historique et modifications</button>
-  <button class="btn btn-line" style="margin-top:9px" onclick="shareResults()">📤 Partager les scores</button>
-  <button class="btn btn-line" style="margin-top:9px;color:var(--ko);border-color:var(--ko)" onclick="abandon()">🗑️ Abandonner la partie</button>`;
-  document.getElementById('menu-body').innerHTML=h;
-  openSheet('sheet-menu');
-}
-function abandon(){
-  if(confirm('Abandonner la partie en cours ? Les scores seront perdus.')){
-    wipe(); closeSheet(); resetSetup(); toast('Partie abandonnée');
+on({
+  go: d => go(d.to, d.id ? { id: d.id } : {}),
+  open: d => { const g = gameById(d.id); if (!g) return; if (g.status === 'playing') db.current = g.id, save(); go(g.status === 'done' ? 'end' : 'game', { id: g.id }); },
+  newGame: () => { startSetup(); go('newgame'); },
+  pickGame: d => { initSetupGame(d.g, db.games.slice().sort((a, b) => b.startedAt - a.startedAt)[0]); render({ enter: true }); },
+  setupName: v => { setup.typing = v; },
+  setupAdd: () => {
+    const name = normName(setup.typing || (document.getElementById('np') || {}).value);
+    if (!name) { document.getElementById('np')?.focus(); return; }
+    const p = playerByName(db, name);
+    if (addSetupPlayer(p.id)) { setup.typing = ''; save(); render(); document.getElementById('np')?.focus(); }
+  },
+  setupPick: d => { if (addSetupPlayer(d.id)) render(); },
+  setupRemove: d => { setup.playerIds.splice(+d.k, 1); render(); },
+  setupUp: d => { const k = +d.k, a = setup.playerIds; [a[k - 1], a[k]] = [a[k], a[k - 1]]; render(); },
+  setupFormat: formatSheet,
+  setFormat: d => { setup.format = d.v; closeSheet(true); render(); },
+  setupOptions: optionsSheet,
+  setOpt: d => {
+    const def = getGame(setup.gameId).options.find(o => o.key === d.k);
+    setup.options[d.k] = def.type === 'choice' ? d.v : !setup.options[d.k];
+    optionsSheet();
+  },
+  startGame: () => {
+    const mod = getGame(setup.gameId);
+    const g = { id: uid('g'), gameId: mod.id, status: 'playing', startedAt: Date.now(), endedAt: null,
+      playerIds: setup.playerIds.slice(), format: setup.format, options: { ...setup.options }, dealer: 0 };
+    mod.setup(g);
+    db.games.push(g); db.current = g.id; setup = null; save();
+    go('round', { id: g.id });
+  },
+  rematch: () => {
+    const old = gameById(route.params.id), mod = modOf(old);
+    const g = { id: uid('g'), gameId: old.gameId, status: 'playing', startedAt: Date.now(), endedAt: null,
+      playerIds: old.playerIds.slice(), format: old.format, options: { ...old.options }, dealer: (old.dealer + 1) % old.playerIds.length };
+    mod.setup(g);
+    db.games.push(g); db.current = g.id; save();
+    toast('Revanche !');
+    go('round', { id: g.id });
+  },
+  edit: d => openEditor(route.params.id, +d.r),
+  editList: editListSheet,
+  edSave: () => {
+    const g = gameById(draft.gameId), v = modOf(g).validateRound(g, draft.round);
+    if (!v.ok) { toast(v.msg); shake(document.getElementById('ed-tally')); return; }
+    const r = draft.r;
+    g.rounds[r] = draft.round; draft = null; save();
+    closeSheet(true); buzz(16);
+    toast(`Manche ${r + 1} modifiée · totaux recalculés`);
+    render();
+  },
+  menu: menuSheet,
+  rules: d => {
+    const m = getGame(d.game);
+    openSheet({ title: `Règles · ${m.name}`, body: `<div class="rules">${m.rulesHtml}</div>` });
+  },
+  share: () => {
+    const g = gameById(route.params.id), txt = shareText(g);
+    closeSheet(true);
+    if (navigator.share) navigator.share({ title: 'Ardoise', text: txt }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Scores copiés')).catch(() => toast('Copie impossible'));
+  },
+  deleteGame: () => {
+    const g = gameById(route.params.id);
+    if (!confirm(g.status === 'done' ? 'Supprimer cette partie de l’historique ?' : 'Abandonner la partie en cours ? Les scores seront perdus.')) return;
+    db.games = db.games.filter(x => x !== g);
+    if (db.current === g.id) db.current = null;
+    save(); toast(g.status === 'done' ? 'Partie supprimée' : 'Partie abandonnée');
+    go('home');
+  },
+  settings: settingsSheet,
+  theme: d => { db.prefs.theme = d.v; save(); applyTheme(); settingsSheet(); },
+  export: () => {
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ardoise-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+  wipe: () => {
+    if (!confirm('Effacer toutes les parties et tous les joueurs ? Cette action est définitive.')) return;
+    const theme = db.prefs.theme;
+    db = { schema: 1, players: [], games: [], current: null, prefs: { theme }, legacyImported: true };
+    save(); toast('Données effacées'); go('home');
+  },
+  player: d => playerSheet(d.id),
+  playerNew: () => openSheet({
+    title: 'Nouveau joueur',
+    body: `<div class="add-row"><input class="field" id="pnew" type="text" maxlength="16" autocapitalize="words" placeholder="Nom" aria-label="Nom du joueur" data-enter="playerCreate">
+      <button class="icon-btn" data-act="playerCreate" aria-label="Ajouter">${icon('check')}</button></div>`
+  }),
+  playerCreate: () => {
+    const name = normName(document.getElementById('pnew').value);
+    if (!name) return;
+    if (db.players.some(p => p.name.toLowerCase() === name.toLowerCase())) { toast('Ce joueur existe déjà'); return; }
+    playerByName(db, name); save(); closeSheet(true); render();
+  },
+  playerRename: (d, el) => {
+    const id = d.id || (el && el.dataset.id);
+    const name = normName(document.getElementById('pname').value);
+    if (!name) return;
+    if (db.players.some(p => p.id !== id && p.name.toLowerCase() === name.toLowerCase())) { toast('Ce nom est déjà pris'); return; }
+    playerById(id).name = name; save(); closeSheet(true); toast('Nom enregistré'); render();
+  },
+  playerDelete: d => {
+    db.players = db.players.filter(p => p.id !== d.id);
+    save(); closeSheet(true); render();
   }
-}
-
-/* ═══════════════ FIN DE PARTIE ═══════════════ */
-function showEnd(quiet){
-  state.done=true; save();
-  const t=totals();
-  const rows=state.players.map((p,i)=>({p,i,sc:t[i]})).sort((a,b)=>b.sc-a.sc);
-  const w=rows[0], tie=rows.filter(r=>r.sc===w.sc);
-  const max=Math.max(...rows.map(r=>Math.abs(r.sc)),1);
-
-  document.getElementById('win-box').innerHTML=`
-    <div class="conf" id="conf"></div>
-    <span class="win-skull">💀</span>
-    <span class="win-crown">👑</span>
-    <div class="win-nm">${tie.length>1?tie.map(x=>esc(x.p)).join(' & '):esc(w.p)}</div>
-    <div class="win-pt">${w.sc} points</div>
-    <div class="win-sb">${tie.length>1?'Égalité — rejouez une manche !':'Capitaine des Sept Mers'}</div>`;
-
-  document.getElementById('final-list').innerHTML=rows.map((r,k)=>
-    `<div class="fr"><div class="f-md">${MEDAL[k]||k+1}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:9px">${av(r.i,'sm')}<span class="f-nm">${esc(r.p)}</span></div>
-        <div class="f-bar"><i style="width:${Math.max(3,Math.abs(r.sc)/max*100)}%;background:${r.sc>=0?'var(--gold)':'var(--ko)'}"></i></div>
-      </div>
-      <div class="f-sc">${r.sc}</div></div>`).join('');
-
-  // statistiques
-  let bestR={v:-1e9},worstR={v:1e9},exact=0,zeros=0,tot=0;
-  state.rounds.forEach((R,r)=>state.players.forEach((p,i)=>{
-    const s=scoreOf(R.e[i],R.cards); tot++;
-    if(s.exact)exact++;
-    if(R.e[i].bid===0&&s.exact)zeros++;
-    if(s.pts>bestR.v)bestR={v:s.pts,p,r:r+1};
-    if(s.pts<worstR.v)worstR={v:s.pts,p,r:r+1};
-  }));
-  const mins=Math.round((Date.now()-(state.started||Date.now()))/60000);
-  document.getElementById('stats').innerHTML=`
-    <div class="stat"><div class="stat-v">${Math.round(exact/Math.max(1,tot)*100)}%</div><div class="stat-l">Mises exactes</div></div>
-    <div class="stat"><div class="stat-v">${zeros}</div><div class="stat-l">Mises à zéro réussies</div></div>
-    <div class="stat"><div class="stat-v">${sign(bestR.v)}</div><div class="stat-l">Meilleure manche · ${esc((bestR.p||'').split(' ')[0])}</div></div>
-    <div class="stat"><div class="stat-v">${worstR.v}</div><div class="stat-l">Pire manche · ${esc((worstR.p||'').split(' ')[0])}</div></div>
-    <div class="stat"><div class="stat-v">${state.rounds.length}</div><div class="stat-l">Manches jouées</div></div>
-    <div class="stat"><div class="stat-v">${mins>0?mins+' min':'—'}</div><div class="stat-l">Durée</div></div>`;
-
-  document.getElementById('final-table').innerHTML=scoreTable(false);
-  if(activeScreen()!=='sc-end')goto('sc-end');
-  if(!quiet)setTimeout(confetti,350);
-}
-function confetti(){
-  const l=document.getElementById('conf'); if(!l)return;
-  const cols=['#f0c040','#c8860a','#ffffff','#3ddc84','#ff6b6b','#6aa9ff','#c96aff'];
-  for(let k=0;k<34;k++){
-    const s=document.createElement('div');
-    const c=cols[k%cols.length], sz=5+Math.random()*6;
-    s.style.cssText=`position:absolute;width:${sz}px;height:${sz*(Math.random()>.5?1:1.8)}px;`+
-      `border-radius:${k%3===0?'50%':'2px'};background:${c};left:${Math.random()*100}%;top:-12px;`+
-      `opacity:0;animation:confetti ${1+Math.random()*1.1}s cubic-bezier(.3,.6,.5,1) ${Math.random()*.7}s forwards`;
-    l.appendChild(s);
-  }
-}
-function shareResults(){
-  const t=totals();
-  const rows=state.players.map((p,i)=>({p,sc:t[i]})).sort((a,b)=>b.sc-a.sc);
-  const np=playedCount();
-  const txt=`💀 SKULL KING — ${MODES[state.mode].n}\n\n`+
-    rows.map((r,k)=>`${MEDAL[k]||(k+1)+'.'} ${r.p} — ${r.sc} pts`).join('\n')+
-    `\n\n${np} manche${np>1?'s':''} · ${state.scoring==='rascal'?'Décompte Rascal':'Décompte Skull King'}`;
-  if(navigator.share){navigator.share({title:'Skull King',text:txt}).catch(()=>{})}
-  else if(navigator.clipboard){navigator.clipboard.writeText(txt).then(()=>toast('Scores copiés ✓')).catch(()=>toast('Copie impossible'))}
-  else toast('Partage indisponible');
-  closeSheet();
-}
-function rematch(){
-  const old=state;
-  state=blank();
-  ['players','mode','scoring','cannonball','wager','loot','kraken','whale'].forEach(k=>state[k]=old[k]);
-  buildRounds();
-  state.cur=0; state.dealer=(old.dealer+1)%state.players.length; state.started=Date.now();
-  bonusOpen={}; save(); toast('Revanche ! ⚔️'); renderBid();
-}
-function newGame(){
-  const old=state; wipe();
-  state=blank();
-  ['mode','scoring','cannonball','wager','loot','kraken','whale'].forEach(k=>state[k]=old[k]);
-  state.players=old.players.length>=2?old.players.slice():['','',''];
-  resetSetup();
-}
-function resetSetup(){
-  draft=null; bonusOpen={};
-  renderPlayers(); renderModes(); setScoring(state.scoring);
-  ['cannon:cannonball','wager:wager','loot:loot','kraken:kraken','whale:whale'].forEach(x=>{
-    const [id,k]=x.split(':'); document.getElementById('tg-'+id).classList.toggle('on',!!state[k]);
-  });
-  renderResume(); goto('sc-setup');
-}
-
-/* ═══════════════ RÈGLES ═══════════════ */
-function openRules(anchor){
-  document.getElementById('rules-body').innerHTML=RULES_HTML;
-  openSheet('sheet-rules');
-  if(anchor){setTimeout(()=>{const el=document.getElementById('r-'+anchor);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},220)}
-}
-
-/* ═══════════════ GESTIONNAIRES APPELÉS DEPUIS LE HTML ═══════════════ */
-Object.assign(window,{
-  addPlayer,delPlayer,setMode,setScoring,toggleOpt,toggleDark,resumeGame,startGame,wipe,renderResume,toast,
-  bidBack,stepBid,setBid,setWager,setShot,confirmBids,goto,openRules,
-  stepTrick,stepDestroyed,stepBonus,toggleBonus,confirmTricks,
-  openHistory,openMenu,editRound,edStep,edBonus,edSet,edShot,edDestroyed,cancelEdit,commitEdit,
-  closeSheet,scrimTap,abandon,shareResults,newGame,rematch
 });
-Object.defineProperty(window,'state',{get:()=>state,set:v=>{state=v}});
 
-/* ═══════════════ DÉMARRAGE ═══════════════ */
-(function init(){
-  try{if(localStorage.getItem('sk.dark')==='1'){
-    document.body.classList.add('dark');
-    document.querySelector('meta[name=theme-color]').setAttribute('content','#0d1824');
-  }}catch(e){}
-  state=blank(); state.players=['','',''];
-  resetSetup();
-  document.getElementById('tg-dark').classList.toggle('on',document.body.classList.contains('dark'));
-  if('serviceWorker' in navigator && location.protocol!=='file:'){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  }
-})();
+/* ═══════════════ Démarrage ═══════════════ */
+installDispatcher();
+applyTheme();
+if (db.current && gameById(db.current)?.status === 'playing') route = { name: 'home', params: {} };
+render();
+const splash = document.getElementById('splash');
+setTimeout(() => splash.classList.add('out'), matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 1100);
+setTimeout(() => splash.remove(), 1600);
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -1,14 +1,14 @@
 {
   "name": "Ardoise — carnet de scores",
   "short_name": "Ardoise",
-  "description": "Carnet de scores pour jeux de cartes : Skull King, et bientôt d'autres jeux.",
+  "description": "Carnet de scores pour jeux de cartes : Skull King, et bientôt Skyjo, Jass, Président….",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0a1520",
-  "theme_color": "#0a1520",
+  "background_color": "#2E3A44",
+  "theme_color": "#F5F2EB",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

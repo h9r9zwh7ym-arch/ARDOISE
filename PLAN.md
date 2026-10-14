@@ -17,53 +17,56 @@ Ardoise est un carnet de scores pour jeux de cartes. C'est une web app installab
 ## Structure
 
 ```
-index.html              coquille de l'app (écrans, feuilles modales)
+index.html              coquille : barre du haut, vue, barre d'action, onglets, feuille modale
 manifest.webmanifest    manifest PWA
-sw.js                   service worker (hors ligne)
-icons/                  icônes (provisoires : voir icons/README.md)
+sw.js                   service worker (hors ligne) : incrémenter VERSION à chaque mise en ligne
+icons/                  logo.svg + icônes PNG générées
+fonts/                  Fraunces et Manrope (hébergées, hors ligne)
 src/
-  styles.css            thème et composants
-  app.js                interface (aujourd'hui : Skull King)
-  core/                 [phase 1] noyau commun
-    store.js            persistance + migrations de schéma
-    players.js          joueurs réutilisables
-    history.js          historique des parties, statistiques
-    ui/                 composants communs (stepper, feuille, classement, feuille de score)
+  styles.css            thème clair/sombre et composants
+  app.js                navigation, écrans communs, modification des manches
+  core/
+    store.js            persistance (localStorage « ardoise.v1 ») + reprise de « skullking.v3 »
+    scoring.js          totaux, classement (ex æquo), gagnants, statistiques joueurs
+    ui.js               composants : compteur, interrupteur, choix segmenté, feuille, toast, icônes
   games/
-    registry.js         [phase 1] liste des jeux disponibles
+    registry.js         liste des jeux disponibles
     skull-king/
+      index.js          module : formats, options, points, écran de saisie, éditeur de manche
       scoring.js        calcul des points (pur, testé)
       rules-fr.js       règles affichées dans l'app
-      RULES.md          règles retenues, variantes, sources, points ambigus
-    skyjo/ jass/ president/ menteur/ blackjack/   [à venir, un par un]
-tests/
-  skull-king.test.js
+      RULES.md          règles retenues, variantes, sources, décisions
+tests/                  npm test (node --test, sans dépendance)
 ```
 
-## Contrat d'un module de jeu (phase 1)
+## Contrat d'un module de jeu
+
+C'est le contrat appliqué par `src/games/skull-king/index.js`. Les jeux suivants le compléteront,
+par exemple avec les équipes pour le Jass ou une fin de partie à score cible pour le Skyjo.
 
 ```js
 export default {
-  id: 'skull-king',
-  name: 'Skull King',
-  icon: '💀',
-  players: { min: 2, max: 8 },
-  teams: false,                 // ou { size: 2 } pour le Jass Schieber
-  winner: 'highest',            // ou 'lowest' (Skyjo)
-  end: { type: 'rounds' },      // ou { type: 'target', value: 100 } (Skyjo), 1000/1500 (Jass)
-  variants: [ /* { key, label, description, default, type: 'toggle' | 'choice' } */ ],
-  newRound(game, index) {},     // structure de saisie vide d'une manche
-  validate(game, round) {},     // { ok, msg } : cohérence de la saisie
-  score(game, round) {},        // points par joueur (ou par équipe) pour une manche
-  finalize(game, totals) {},    // ajustements de fin de partie (ex. doublement au Skyjo)
-  isOver(game, totals) {},
-  RoundEditor,                  // composant de saisie et de modification d'une manche
-  rules,                        // HTML des règles
+  id, name, tagline,
+  players: { min, max },
+  winner: 'highest' | 'lowest',
+  formats, defaultFormat,                  // ex. Classique, Éclair…
+  options,                                 // variantes : { key, label, type: 'toggle' | 'choice', def, when?, desc }
+  defaultOptions(), visibleOptions(opts, n), optionsSummary(opts, n), formatSummary(game, n),
+  setup(game),                             // prépare les manches
+  isOver(game),
+  roundPoints(game, r),                    // points de chaque joueur pour la manche r
+  finalize?(game, totals, upto),           // ajustement des totaux (ex. doublement au Skyjo)
+  validateRound(game, round),              // { ok, msg }
+  roundHead(game, r), progress(game), nextLabel(game), endStats(game, names),
+  roundScreen(api, game),                  // écran de saisie de la manche en cours
+  editorBody(api, game, draft),            // contenu de « Modifier la manche »
+  actions(api),                            // gestionnaires des boutons du module
+  rulesHtml
 };
 ```
 
-Le noyau gère tout ce qui est commun aux jeux. On n'écrit dans un module que ce qui est propre
-au jeu :
+Le noyau gère tout ce qui est commun aux jeux, et un module ne contient que ce qui est propre au
+jeu. Le noyau s'occupe de :
 
 - la création d'une partie et le choix des joueurs ;
 - la reprise d'une partie en cours ;
@@ -78,20 +81,20 @@ au jeu :
 // localStorage['ardoise.v1']
 {
   schema: 1,
-  players: [ { id, name, avatar, color, createdAt } ],      // réutilisables d'une partie à l'autre
+  players: [ { id, name, createdAt } ],                     // réutilisables d'une partie à l'autre
   games: [                                                  // historique (parties terminées et en cours)
     {
       id, gameId: 'skull-king', status: 'playing' | 'done',
       startedAt, endedAt,
       playerIds: [...],
-      teams: [[id, id], [id, id]] | null,
       options: { scoring: 'sk', loot: true, kraken: true, ... },   // variantes choisies
       rounds: [ { /* données propres au jeu */ }, ... ],            // jamais de total stocké
-      dealer: 0
+      format: 'classique', cur: 2, step: 'bid', dealer: 0
     }
   ],
   current: '<id de la partie en cours>' | null,
-  prefs: { theme: 'auto' | 'light' | 'dark' }
+  prefs: { theme: 'auto' | 'light' | 'dark' },
+  legacyImported: true
 }
 ```
 
@@ -101,15 +104,15 @@ c'est ce qui garantit que modifier une manche met tout à jour.
 Les statistiques par joueur se calculent depuis `games` : parties jouées, victoires, meilleur
 score, et des statistiques propres à chaque jeu (pour Skull King, le taux de mises exactes).
 
-Les données de l'app actuelle (`skullking.v3`) seront migrées vers le nouveau format au
-premier lancement.
+La partie de l'ancienne app (`skullking.v3`) est reprise au premier lancement. L'ancienne clé
+est conservée intacte, par sécurité.
 
 ## Feuille de route
 
 | Phase | Contenu | État |
 |---|---|---|
 | 0 | Plan, extraction du calcul Skull King + tests, 4 bugs corrigés, manifest PWA | ✅ fait |
-| 1 | Noyau Ardoise : accueil avec choix du jeu, joueurs réutilisables, historique, stats, migration ; Skull King devient le 1er module | à faire |
+| 1 | Noyau Ardoise : accueil, joueurs réutilisables, historique, stats, reprise de l'ancienne sauvegarde ; Skull King devient le 1er module ; nouveau design | ✅ fait |
 | 2 | Skyjo (RULES.md + tests) | à faire |
 | 3 | Jass : Schieber, puis Coiffeur, Différenzler… | à faire |
 | 4 | Trou du cul / Président | à faire |
@@ -159,6 +162,28 @@ Pour chaque jeu, on suit les mêmes étapes :
    - La saisie rapide n'est plus bloquée : l'ancien anti-double-tap avalait les appuis rapides
      sur « + » ; il est remplacé par `touch-action: manipulation`.
 
+## Principes d'ergonomie
+
+- **Loi de Hick : peu de choix par écran.** Un seul bouton principal, en bas, dans la zone du
+  pouce. Les variantes sont repliées dans « Règles et variantes », avec des valeurs par défaut
+  (règles de base). Pour une nouvelle partie, les joueurs et réglages de la dernière partie sont
+  repris. Avec un seul jeu disponible, l'écran de choix du jeu est sauté.
+- **Saisie d'une manche en 2 étapes** (mises, puis plis). Les bonus s'ouvrent à la demande,
+  dans une feuille dédiée.
+- **Peu de couleurs.**
+  - Des neutres ardoise et craie.
+  - Un seul accent, l'ocre, réservé au leader et à la progression.
+  - Le vert et le rouge uniquement pour les points gagnés ou perdus.
+  - Aucune couleur par joueur ni par jeu.
+- **Confort sur iPhone.**
+  - Zones tactiles de 44 px minimum (compteurs de 48 px).
+  - Contraste du texte d'au moins 4,5:1.
+  - Chiffres tabulaires, pour que les scores restent alignés.
+  - Thème clair, sombre ou automatique.
+  - Animations courtes, désactivées si l'iPhone demande de réduire les animations.
+- **Le total n'est affiché qu'à un endroit**, dans le classement. La feuille de score montre les
+  points de chaque manche, et toucher une manche permet de la modifier.
+
 ## Identité visuelle
 
 Le design de référence est sur le canevas « Ardoise — design ». Il contient le logo, les
@@ -167,10 +192,10 @@ classement, saisie d'une manche, fin de partie, joueurs).
 
 - **Logo** : quatre traits de craie barrés d'un cinquième, en ocre, sur fond ardoise
   (`icons/logo.svg`).
-- **Couleurs** : ardoise `#2E3A44`, craie `#F3EFE6`, ocre `#E3B04B`, encre `#1D252C`,
-  fond papier `#F5F2EB`, gain `#2E7D57`, perte `#B8433A`, et une teinte par jeu.
+- **Couleurs** : ardoise `#2E3A44`, craie `#F3EFE6`, ocre `#E3B04B` (seul accent),
+  encre `#1D252C`, fond papier `#F5F2EB`, gain `#2E7D57`, perte `#B8433A`.
 - **Polices** : Fraunces (serif douce) pour les titres, Manrope pour le texte et les chiffres
-  (tabulaires). Elles seront hébergées dans l'app pour qu'elle marche hors ligne.
+  (tabulaires). Elles sont hébergées dans l'app (`fonts/`), pour qu'elle marche hors ligne.
 
 ## Décisions prises
 
