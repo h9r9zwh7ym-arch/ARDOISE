@@ -73,6 +73,15 @@ export function stepper({ value, act, data = {}, label = '', min = 0, max = 99, 
   </div>`;
 }
 
+/** Champ numérique (clavier chiffré). signed : ajoute une touche ± (le pavé numérique iOS n'a pas de « − »). */
+export function numField({ id, value, input, enter = '', data = {}, label, placeholder = '—', signed = false, signAct = '', cls = '' }) {
+  const d = dataAttrs(data);
+  return `<span class="score-in">${signed ? `<button class="icon-btn plain sign-btn" data-act="${signAct}" ${d} aria-label="${esc(label)} : changer le signe">±</button>` : ''}
+    <input class="field num score ${cls}" id="${id}" type="text" inputmode="numeric" pattern="-?[0-9]*" autocomplete="off"
+      aria-label="${esc(label)}" placeholder="${esc(placeholder)}" value="${value === null || value === undefined ? '' : esc(value)}"
+      data-input="${input}" ${enter ? `data-enter="${enter}"` : ''} ${d}></span>`;
+}
+
 export function toggle(on, act, data = {}, label = '') {
   const d = dataAttrs(data);
   return `<button class="tgl ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="${esc(label)}" data-act="${act}" ${d}></button>`;

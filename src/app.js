@@ -1,14 +1,14 @@
 /* Ardoise — coquille de l'application : navigation, écrans communs, modification des manches.
    Chaque jeu (src/games/<jeu>/) fournit sa logique de points et son écran de saisie. */
 import { createStore, playerByName, normName, uid } from './core/store.js';
-import { played, totals, ranking, winners, playerStats, recentPlayers } from './core/scoring.js';
+import { played, totals, ranking, winners, playerStats, recentPlayers, winnerMode } from './core/scoring.js';
 import { GAMES, getGame } from './games/registry.js';
 import {
   on, installDispatcher, esc, sign, plural, icon, LOGO, avatar, toggle, segmented,
   toast, openSheet, closeSheet, shake, buzz, shortDate
 } from './core/ui.js';
 
-const VERSION = '1.2';
+const VERSION = '1.3';
 const store = createStore(localStorage);
 let db = store.load();
 let route = { name: 'home', params: {} };
@@ -20,12 +20,18 @@ const save = () => { if (!store.save(db)) toast('Enregistrement impossible : sto
 const gameById = id => db.games.find(g => g.id === id);
 const playerById = id => db.players.find(p => p.id === id);
 const nameOf = id => (playerById(id) || { name: '?' }).name;
-const namesOf = game => game.playerIds.map(nameOf);
+const playerNamesOf = game => game.playerIds.map(nameOf);
+// Concurrents classés : les joueurs, ou les équipes dans les jeux en équipes (Jass)
+const namesOf = game => { const m = modOf(game), p = playerNamesOf(game); return m && m.sides ? m.sides(game, p) : p; };
+const teamGame = game => { const m = modOf(game); return !!(m && m.sides && m.sides(game, playerNamesOf(game)).length !== game.playerIds.length); };
+// Nombre de joueurs autorisé (il peut dépendre de la variante choisie, ex. Jass)
+const rangeOf = (mod, options) => (typeof mod.players === 'function' ? mod.players(options || {}) : mod.players);
+const unitOf = (mod, n) => (mod.unit ? mod.unit(n) : (Math.abs(n) > 1 ? 'points' : 'point'));
 const modOf = game => getGame(game.gameId);
 const gameTotals = (game, upto) => totals(modOf(game), game, upto);
 function progressOf(game) {
   const p = modOf(game).progress(game, gameTotals(game));
-  return { ...p, ratio: p.ratio ?? played(game) / p.total };
+  return { ...p, ratio: 'ratio' in p ? p.ratio : played(game) / p.total };
 }
 
 /* ═══════════════ Navigation et rendu ═══════════════ */
@@ -84,7 +90,8 @@ window.addEventListener('scroll', () => {
 /* ═══════════════ Morceaux d'interface communs ═══════════════ */
 // Vert / rouge seulement quand des points en plus sont une bonne nouvelle (Skull King) ;
 // au Skyjo, où le plus petit score gagne, les points restent neutres.
-const tone = (mod, v) => (mod.winner === 'lowest' ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '');
+const tone = (mod, game, v) => (winnerMode(mod, game) === 'lowest' ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '');
+const roundsLabel = (mod, n) => (mod.roundsLabel ? mod.roundsLabel(n) : plural(n, 'manche', 'manches'));
 function rankCard(game, animate) {
   const mod = modOf(game), names = namesOf(game), rows = ranking(mod, game), n = played(game);
   const html = `<section class="section"><div class="section-h"><h2 class="label">Classement</h2><span class="label">Total</span></div>
@@ -93,7 +100,7 @@ function rankCard(game, animate) {
       <span class="rank-pos">${r.rank === 1 && n ? icon('crown', 20, 'role="img" aria-label="En tête"') : r.rank}</span>
       ${avatar(names[r.i], r.rank === 1 && n ? 'lead' : '')}
       <span class="rank-n">${esc(names[r.i])}</span>
-      ${n ? `<span class="rank-d ${tone(mod, r.delta)}">${sign(r.delta)}</span>` : ''}
+      ${n ? `<span class="rank-d ${tone(mod, game, r.delta)}">${sign(r.delta)}</span>` : ''}
       <span class="rank-total">${r.total}</span>
     </div>`).join('')}</div></section>`;
   const order = rows.map(r => r.i), prev = lastOrder[game.id];
@@ -126,7 +133,7 @@ function scoreSheet(game) {
   }
   h += '</tr></thead><tbody>';
   names.forEach((nm, i) => {
-    h += `<tr><td class="nm">${esc(nm)}</td>${pts.map(p => `<td class="${tone(mod, p[i])}">${mod.winner === 'lowest' ? p[i] : sign(p[i])}</td>`).join('')}</tr>`;
+    h += `<tr><td class="nm">${esc(nm)}</td>${pts.map(p => `<td class="${tone(mod, game, p[i])}">${winnerMode(mod, game) === 'lowest' ? p[i] : sign(p[i])}</td>`).join('')}</tr>`;
   });
   return `<section class="section"><div class="section-h"><h2 class="label">Feuille de score</h2></div>
     <div class="card pad"><div class="sheet-wrap">${h}</tbody></table></div>
@@ -139,12 +146,12 @@ function gameRow(g) {
   let title, val = '';
   if (g.status === 'done') {
     const w = winners(mod, g), t = gameTotals(g);
-    title = `${w.map(i => esc(names[i])).join(' et ')} ${w.length > 1 ? 'à égalité' : 'gagne'}`;
+    title = `${w.map(i => esc(names[i])).join(' et ')} ${w.length > 1 ? 'à égalité' : teamGame(g) ? 'gagnent' : 'gagne'}`;
     val = `<span class="row-v">${t[w[0]]}</span>`;
   } else title = 'En cours';
   return `<li><button class="row" data-act="open" data-id="${g.id}">
     <div class="row-txt"><span class="row-t">${mod.name} · ${title}</span>
-    <span class="row-s">${shortDate(g.startedAt)} · ${plural(names.length, 'joueur', 'joueurs')} · ${plural(n, 'manche', 'manches')}</span></div>
+    <span class="row-s">${shortDate(g.startedAt)} · ${plural(names.length, 'joueur', 'joueurs')} · ${roundsLabel(mod, n)}</span></div>
     ${val}${icon('chevron', 18, 'class="ic chev"')}</button></li>`;
 }
 
@@ -161,9 +168,9 @@ const SCREENS = {
       const lead = played(playing) ? `${esc(names[rows[0].i])} mène` : 'Aucune manche jouée';
       body += `<button class="resume" data-act="go" data-to="game" data-id="${playing.id}">
         <span class="resume-k">Partie en cours</span>
-        <span class="resume-main"><span><span class="resume-t">${mod.name}</span><br><span class="resume-s">${p.label} · ${esc(names.join(', '))}</span></span>
+        <span class="resume-main"><span><span class="resume-t">${mod.name}</span><br><span class="resume-s">${p.label} · ${esc(playerNamesOf(playing).join(', '))}</span></span>
           <span><span class="resume-s">${lead}</span><br><span class="resume-v">${played(playing) ? rows[0].total : ''}</span></span></span>
-        <span class="track"><i style="width:${p.ratio * 100}%"></i></span>
+        ${p.ratio === null ? '' : `<span class="track"><i style="width:${p.ratio * 100}%"></i></span>`}
         <span class="resume-go">Reprendre ${icon('next', 20)}</span>
       </button>`;
     }
@@ -186,31 +193,34 @@ const SCREENS = {
         body: `<ul class="card list">${gamesByRecency().map(m => `<li><button class="row" data-act="pickGame" data-g="${m.id}">
           <div class="row-txt"><span class="row-t">${m.name}</span><span class="row-s">${m.tagline}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>`).join('')}</ul>` };
     }
-    const mod = getGame(setup.gameId), n = setup.playerIds.length;
+    const mod = getGame(setup.gameId), n = setup.playerIds.length, range = rangeOf(mod, setup.options);
     const sel = setup.playerIds.map((id, k) => `<li class="prow"><div class="prow-main">${avatar(nameOf(id))}
-      <div class="prow-txt"><span class="prow-n">${esc(nameOf(id))}</span>${k === 0 && mod.firstPlayerLabel ? `<span class="prow-s">${mod.firstPlayerLabel}</span>` : ''}</div>
-      ${k > 0 && mod.firstPlayerLabel ? `<button class="icon-btn plain" data-act="setupUp" data-k="${k}" aria-label="Faire monter ${esc(nameOf(id))}"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ''}
+      <div class="prow-txt"><span class="prow-n">${esc(nameOf(id))}</span>${mod.seatLabel && mod.seatLabel(k, setup.options) ? `<span class="prow-s">${mod.seatLabel(k, setup.options)}</span>` : ''}</div>
+      ${k > 0 && mod.seatLabel ? `<button class="icon-btn plain" data-act="setupUp" data-k="${k}" aria-label="Faire monter ${esc(nameOf(id))}"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ''}
       <button class="icon-btn plain" data-act="setupRemove" data-k="${k}" aria-label="Retirer ${esc(nameOf(id))}">${icon('close', 20)}</button></div></li>`).join('');
     const sugg = recentPlayers(db).filter(p => !setup.playerIds.includes(p.id)).slice(0, 6);
-    const full = n >= mod.players.max;
+    const full = n >= range.max;
     const body = `
-      <section class="section"><div class="section-h"><h2 class="label">Joueurs · ${n}</h2><span class="hint">${mod.players.min} à ${mod.players.max}</span></div>
+      <section class="section"><div class="section-h"><h2 class="label">Joueurs · ${n}</h2><span class="hint">${range.min === range.max ? `${range.max} joueurs` : `${range.min} à ${range.max}`}</span></div>
         ${n ? `<ul class="card list">${sel}</ul>` : ''}
         ${full ? '' : `<div class="add-row"><input class="field" id="np" type="text" maxlength="16" autocomplete="off" autocapitalize="words" enterkeyhint="done"
             placeholder="Nom d’un joueur" aria-label="Nom d’un joueur" data-input="setupName" data-enter="setupAdd" value="${esc(setup.typing || '')}">
           <button class="icon-btn" data-act="setupAdd" aria-label="Ajouter le joueur">${icon('plus')}</button></div>
           ${sugg.length ? `<div class="row-extra" style="padding-left:0">${sugg.map(p => `<button class="chip add" data-act="setupPick" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>` : ''}`}
       </section>
+      ${mod.options.filter(o => o.prominent).map(o => `<section class="section"><h2 class="label">${o.label}</h2>
+        ${segmented(o.choices, setup.options[o.key], 'setOptMain', o.label, { k: o.key })}<p class="hint">${o.desc(setup.options)}</p></section>`).join('')}
       <section class="section"><h2 class="label">Partie</h2>
         <ul class="card list">
           ${mod.formats.length > 1 ? `<li><button class="row" data-act="setupFormat"><div class="row-txt"><span class="row-t">${mod.formats.find(f => f.id === setup.format).name}</span>
-            <span class="row-s">${mod.formatSummary(setup, Math.max(n, mod.players.min))}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>` : ''}
-          <li><button class="row" data-act="setupOptions"><div class="row-txt"><span class="row-t">Règles et variantes</span>
-            <span class="row-s">${mod.optionsSummary(setup.options, n)}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>
+            <span class="row-s">${mod.formatSummary(setup, Math.max(n, range.min))}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>` : ''}
+          ${mod.visibleOptions(setup.options, n).some(o => !o.prominent) ? `<li><button class="row" data-act="setupOptions"><div class="row-txt"><span class="row-t">Règles et variantes</span>
+            <span class="row-s">${mod.optionsSummary(setup.options, n)}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>` : ''}
         </ul></section>`;
-    const ok = n >= mod.players.min && n <= mod.players.max;
+    const ok = n >= range.min && n <= range.max;
+    const need = n < range.min ? (range.min === range.max ? `Il faut ${range.min} joueurs` : `Ajoutez au moins ${range.min} joueur${range.min > 1 ? 's' : ''}`) : `${range.max} joueurs au maximum`;
     return { title: mod.name, sub: 'Nouvelle partie', back: GAMES.length > 1 ? { to: 'newgamePick' } : { to: 'home' }, body,
-      bar: `<button class="btn btn-primary" data-act="startGame" ${ok ? '' : 'disabled'}>${ok ? `Commencer · ${plural(n, 'joueur', 'joueurs')}` : `Ajoutez au moins ${mod.players.min} joueurs`}</button>` };
+      bar: `<button class="btn btn-primary" data-act="startGame" ${ok ? '' : 'disabled'}>${ok ? `Commencer · ${plural(n, 'joueur', 'joueurs')}` : need}</button>` };
   },
 
   game(p, opts) {
@@ -223,8 +233,9 @@ const SCREENS = {
     return {
       title: mod.name, sub: pr.label, back: { to: 'home', label: 'Accueil' },
       right: `<button class="icon-btn" data-act="menu" aria-label="Options de la partie">${icon('more')}</button>`,
-      body: `<div class="track" role="progressbar" aria-label="Progression de la partie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pr.ratio * 100)}"><i style="width:${pr.ratio * 100}%"></i></div>
-        ${rk.html}${scoreSheet(g)}`,
+      body: `${pr.ratio === null ? '' : `<div class="track" role="progressbar" aria-label="Progression de la partie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pr.ratio * 100)}"><i style="width:${pr.ratio * 100}%"></i></div>`}
+        ${rk.html}${scoreSheet(g)}
+        ${(typeof mod.manualEnd === 'function' ? mod.manualEnd(g) : mod.manualEnd) && played(g) ? `<button class="btn btn-secondary" data-act="endGame">Terminer la partie</button>` : ''}`,
       bar: `<button class="btn btn-primary" data-act="go" data-to="round" data-id="${g.id}">${mod.nextLabel(g)} ${icon('next', 20)}</button>`,
       after: rk.after
     };
@@ -247,9 +258,9 @@ const SCREENS = {
     const body = `
       <section class="win">${celebrate ? '<div class="conf" id="conf"></div>' : ''}
         ${icon('crown', 40)}
-        <span class="win-k">${mod.name} · ${plural(g.rounds.length, 'manche', 'manches')}</span>
-        <h2 class="win-n">${tie ? `${w.map(i => esc(names[i])).join(' et ')}` : `${esc(names[w[0]])} gagne`}</h2>
-        <span class="win-p">${tie ? `Égalité à ${t[w[0]]} points — rejouez une manche !` : `${t[w[0]]} points`}</span>
+        <span class="win-k">${mod.name} · ${roundsLabel(mod, g.rounds.length)}</span>
+        <h2 class="win-n">${tie ? `${w.map(i => esc(names[i])).join(' et ')}` : `${esc(names[w[0]])} ${teamGame(g) ? 'gagnent' : 'gagne'}`}</h2>
+        <span class="win-p">${tie ? `Égalité à ${t[w[0]]} ${unitOf(mod, t[w[0]])}${mod.tieHint ? ` — ${mod.tieHint}` : ''}` : `${t[w[0]]} ${unitOf(mod, t[w[0]])}`}</span>
       </section>
       ${rankCard(g, false).html}
       <div class="tiles">${mod.endStats(g, names).map(s => `<div class="tile"><b>${s.v}</b><span>${s.l}</span></div>`).join('')}</div>
@@ -354,7 +365,7 @@ function menuSheet() {
   const done = g.status === 'done';
   openSheet({
     title: modOf(g).name,
-    sub: namesOf(g).map(esc).join(', '),
+    sub: playerNamesOf(g).map(esc).join(', '),
     body: `<ul class="card list">
         <li><button class="row" data-act="rules" data-game="${g.gameId}">${icon('book')}<div class="row-txt"><span class="row-t">Règles du jeu</span></div></button></li>
         <li><button class="row" data-act="share">${icon('share')}<div class="row-txt"><span class="row-t">Partager les scores</span></div></button></li>
@@ -375,7 +386,7 @@ function editListSheet() {
 }
 
 function formatSheet() {
-  const mod = getGame(setup.gameId), n = Math.max(setup.playerIds.length, mod.players.min);
+  const mod = getGame(setup.gameId), n = Math.max(setup.playerIds.length, rangeOf(mod, setup.options).min);
   openSheet({
     title: 'Format',
     body: `<ul class="card list">${mod.formats.map(f => `<li><button class="opt-row ${f.id === setup.format ? 'on' : ''}" style="width:100%;text-align:left" data-act="setFormat" data-v="${f.id}" role="radio" aria-checked="${f.id === setup.format}">
@@ -385,7 +396,7 @@ function formatSheet() {
 
 function optionsSheet() {
   const mod = getGame(setup.gameId), o = setup.options, n = setup.playerIds.length;
-  const rows = mod.visibleOptions(o, n).map(d => d.type === 'choice'
+  const rows = mod.visibleOptions(o, n).filter(d => !d.prominent).map(d => d.type === 'choice'
     ? `<section class="section"><h3 class="label">${d.label}</h3>${segmented(d.choices, o[d.key], 'setOpt', d.label, { k: d.key })}<p class="hint">${d.desc(o)}</p></section>`
     : `<div class="opt-row"><div class="row-txt"><span class="row-t">${d.label}</span><span class="row-s" style="white-space:normal">${d.desc(o)}</span></div>${toggle(!!o[d.key], 'setOpt', { k: d.key }, d.label)}</div>`);
   const first = rows.findIndex(r => r.startsWith('<div'));
@@ -428,7 +439,8 @@ function shareText(g) {
 /* ═══════════════ API offerte aux modules de jeu ═══════════════ */
 const api = {
   game: () => gameById(route.params.id),
-  names: namesOf,
+  names: playerNamesOf,
+  sideNames: namesOf,
   totals: (g, upto) => gameTotals(g, upto),
   save,
   render: anim => render({ enter: !!anim }),
@@ -477,7 +489,8 @@ function initSetupGame(gid, last) {
 function addSetupPlayer(id) {
   const mod = getGame(setup.gameId);
   if (setup.playerIds.includes(id)) { toast('Déjà dans la partie'); return false; }
-  if (setup.playerIds.length >= mod.players.max) { toast(`${mod.players.max} joueurs au maximum`); return false; }
+  const max = rangeOf(mod, setup.options).max;
+  if (setup.playerIds.length >= max) { toast(`${max} joueurs au maximum`); return false; }
   setup.playerIds.push(id);
   return true;
 }
@@ -500,6 +513,16 @@ on({
   setupFormat: formatSheet,
   setFormat: d => { setup.format = d.v; closeSheet(true); render(); },
   setupOptions: optionsSheet,
+  setOptMain: d => { setup.options[d.k] = d.v; render(); },
+  endGame: () => {
+    const g = gameById(route.params.id);
+    if (!g || !confirm('Terminer la partie maintenant ? Le classement actuel devient le résultat final.')) return;
+    g.rounds.length = Math.min(g.cur, g.rounds.length); g.cur = g.rounds.length;
+    g.status = 'done'; g.endedAt = Date.now();
+    if (db.current === g.id) db.current = null;
+    save(); buzz(30);
+    go('end', { id: g.id, celebrate: true });
+  },
   setOpt: d => {
     const def = getGame(setup.gameId).options.find(o => o.key === d.k);
     setup.options[d.k] = def.type === 'choice' ? d.v : !setup.options[d.k];
@@ -525,7 +548,7 @@ on({
   edit: d => openEditor(route.params.id, +d.r),
   editList: editListSheet,
   edSave: () => {
-    const g = gameById(draft.gameId), v = modOf(g).validateRound(g, draft.round);
+    const g = gameById(draft.gameId), v = modOf(g).validateRound(g, draft.round, draft.r);
     if (!v.ok) { toast(v.msg); shake(document.getElementById('ed-tally')); return; }
     const r = draft.r, mod = modOf(g);
     g.rounds[r] = draft.round; draft = null;

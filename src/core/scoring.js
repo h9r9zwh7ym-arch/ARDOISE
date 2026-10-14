@@ -6,8 +6,14 @@ export function played(game) {
   return game.status === 'done' ? game.rounds.length : Math.min(game.cur, game.rounds.length);
 }
 
+/** Sens du classement : 'highest' ou 'lowest' (peut dépendre de la variante, ex. Jass Différenzler). */
+export const winnerMode = (mod, game) => (typeof mod.winner === 'function' ? mod.winner(game) : mod.winner);
+
+/** Nombre de concurrents classés : les joueurs, ou les équipes (mod.sideCount). */
+export const sideCount = (mod, game) => (mod.sideCount ? mod.sideCount(game) : game.playerIds.length);
+
 export function totals(mod, game, upto = played(game)) {
-  const t = game.playerIds.map(() => 0);
+  const t = Array(sideCount(mod, game)).fill(0);
   for (let r = 0; r < Math.min(upto, game.rounds.length); r++) {
     mod.roundPoints(game, r).forEach((p, i) => { t[i] += p; });
   }
@@ -22,14 +28,23 @@ export function ranking(mod, game) {
   const n = played(game);
   const t = totals(mod, game, n);
   const prev = n > 0 ? totals(mod, game, n - 1) : t.map(() => 0);
-  const better = mod.winner === 'lowest' ? (a, b) => a - b : (a, b) => b - a;
+  const better = winnerMode(mod, game) === 'lowest' ? (a, b) => a - b : (a, b) => b - a;
   const rows = t.map((total, i) => ({ i, total, delta: total - prev[i] })).sort((a, b) => better(a.total, b.total) || a.i - b.i);
   rows.forEach((r, k) => { r.rank = k > 0 && r.total === rows[k - 1].total ? rows[k - 1].rank : k + 1; });
+  // départage propre au jeu (Jass Schieber) : le gagnant passe en tête, même avec un total inférieur
+  const w = mod.decideWinners && game.status === 'done' ? mod.decideWinners(game) : null;
+  if (w && w.length) {
+    rows.sort((a, b) => (w.includes(b.i) - w.includes(a.i)) || better(a.total, b.total) || a.i - b.i);
+    rows.forEach((r, k) => { r.rank = w.includes(r.i) ? 1 : (k > 0 && r.total === rows[k - 1].total && rows[k - 1].rank > 1 ? rows[k - 1].rank : k + 1); });
+  }
   return rows;
 }
 
 /** Index des gagnants d'une partie terminée (plusieurs en cas d'égalité). */
 export function winners(mod, game) {
+  // certains jeux départagent autrement que par le total (Jass Schieber : « Stöck – Wys – Stich »)
+  const w = mod.decideWinners && game.status === 'done' ? mod.decideWinners(game) : null;
+  if (w) return w;
   return ranking(mod, game).filter(r => r.rank === 1).map(r => r.i);
 }
 
@@ -42,7 +57,8 @@ export function playerStats(db, getMod, playerId) {
     if (i < 0 || g.status !== 'done' || !mod) continue;
     const bg = s.byGame[g.gameId] || (s.byGame[g.gameId] = { played: 0, wins: 0 });
     s.played++; bg.played++;
-    if (winners(mod, g).includes(i)) { s.wins++; bg.wins++; }
+    const side = mod.sideOf ? mod.sideOf(g, i) : i;   // équipe du joueur (Jass)
+    if (winners(mod, g).includes(side)) { s.wins++; bg.wins++; }
     s.lastPlayed = Math.max(s.lastPlayed || 0, g.endedAt || g.startedAt || 0);
   }
   s.winRate = s.played ? Math.round(s.wins / s.played * 100) : 0;
