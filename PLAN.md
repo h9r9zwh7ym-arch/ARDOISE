@@ -159,14 +159,28 @@ Pour chaque jeu, on suit les mêmes étapes :
    - La saisie rapide n'est plus bloquée : l'ancien anti-double-tap avalait les appuis rapides
      sur « + » ; il est remplacé par `touch-action: manipulation`.
 
+## Identité visuelle
+
+Le design de référence est sur le canevas « Ardoise — design ». Il contient le logo, les
+couleurs, la typographie et les écrans iPhone (ouverture, accueil, nouvelle partie,
+classement, saisie d'une manche, fin de partie, joueurs).
+
+- **Logo** : quatre traits de craie barrés d'un cinquième, en ocre, sur fond ardoise
+  (`icons/logo.svg`).
+- **Couleurs** : ardoise `#2E3A44`, craie `#F3EFE6`, ocre `#E3B04B`, encre `#1D252C`,
+  fond papier `#F5F2EB`, gain `#2E7D57`, perte `#B8433A`, et une teinte par jeu.
+- **Polices** : Fraunces (serif douce) pour les titres, Manrope pour le texte et les chiffres
+  (tabulaires). Elles seront hébergées dans l'app pour qu'elle marche hors ligne.
+
+## Décisions prises
+
+- La Tigresse jouée comme Pirate puis capturée par le Skull King vaut +30.
+- Boulet de canon : la règle de l'app d'origine est confirmée par les règles officielles
+  (voir `RULES.md`).
+- Hébergement : GitHub Pages (<https://h9r9zwh7ym-arch.github.io/Skull_King/>), servi depuis
+  `main`. Les parties enregistrées sur le téléphone (`skullking.v3`) sont reprises
+  automatiquement.
+
 ## Questions ouvertes
 
-Voir aussi `src/games/skull-king/RULES.md`.
-
-1. **Skull King, Tigresse jouée comme Pirate puis capturée par le Skull King :** vaut-elle +30 ?
-2. **Skull King, Boulet de canon :** peux-tu confirmer le barème avec ton livret français ?
-3. **Thème :** quelles sont les couleurs, polices et principes visuels de Zeste, Matière et Forge ?
-   Un lien ou une capture me suffit.
-4. **Hébergement :** l'app est-elle déjà servie quelque part, par exemple sur GitHub Pages ?
-   Une PWA doit être servie en HTTPS.
-5. **Menteur :** quelle version exactement ? Elle est à préciser avant la phase 5.
+1. **Menteur :** quelle version exactement ? Elle est à préciser avant la phase 5.

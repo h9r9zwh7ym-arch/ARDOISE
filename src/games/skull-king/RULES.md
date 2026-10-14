@@ -87,15 +87,26 @@ cartes. Il n'y a **pas de Butin** à 2 joueurs.
 Le livret dit : « In the event of a tie, play another round until the tie is broken. »
 L'app affiche l'égalité. Une manche supplémentaire n'est pas encore proposée.
 
-## Points ambigus ou non vérifiés : à trancher
+## Points tranchés
 
-1. **Tigresse jouée comme Pirate, puis capturée par le Skull King : +30 ?** Le livret dit
-   seulement « 30 points for each Pirate taken by the Skull King ». Il précise ailleurs que le
-   Skull King bat « Pirates (including the Tigress when played as a Pirate) ».
-   L'app accepte jusqu'à 6 captures (5 Pirates + la Tigresse) pour laisser la table décider.
-2. **Boulet de canon (variante Rascal, ×15 / tout ou rien)** : la FAQ en anglais le cite, mais
-   les 2 pages du PDF Rascal que j'ai lues n'en donnent pas le barème. La version actuelle de
-   l'app (×15 si exact, sinon 0, bonus seulement si exact) vient de l'app d'origine. Elle doit
-   être confirmée avec le livret français.
-3. **Taille de la main avec les cartes avancées** : à 8 joueurs avec les 4 cartes avancées
-   (74 cartes), l'app permet 9 cartes. Le livret ne parle que du paquet de base (8 cartes).
+1. **Tigresse jouée comme Pirate, puis capturée par le Skull King : +30** (décision de la
+   table, 14/10/2026). Le livret dit « 30 points for each Pirate taken by the Skull King » et
+   précise que le Skull King bat « Pirates (including the Tigress when played as a Pirate) ».
+   L'app accepte donc jusqu'à 6 captures (5 Pirates + la Tigresse).
+2. **Boulet de canon / Chevrotine (variante Rascal)**. Après les mises, chacun révèle en même
+   temps son choix :
+   - **Chevrotine** (main ouverte) : décompte Rascal normal.
+   - **Boulet de canon** (poing fermé) : 15 points par carte distribuée si la mise est exacte,
+     0 sinon, même avec un seul pli d'écart. « You must get your bid correct to earn any bonus
+     points » : bonus complets si la mise est exacte, aucun sinon.
+   - Le pari de Rascal of Roatan n'est pas modifié par le Boulet de canon (FAQ de l'éditeur).
+
+   C'est ce que faisait déjà l'app d'origine. Sources :
+   [transcription du livret 2021 (RulesPal)](https://www.rulespal.com/skull-king/rulebook),
+   [The Board Game Family](https://www.theboardgamefamily.com/2021/09/the-new-skull-king/),
+   [FAQ de l'éditeur](https://www.grandpabecksgames.com/pages/skull-king).
+
+## Point encore ouvert
+
+- **Taille de la main avec les cartes avancées** : à 8 joueurs avec les 4 cartes avancées
+  (74 cartes), l'app permet 9 cartes. Le livret ne parle que du paquet de base (8 cartes).

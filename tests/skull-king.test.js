@@ -94,3 +94,16 @@ test('Nombre de cartes ajusté au paquet', () => {
   assert.equal(deckSize({ loot: true, kraken: true, whale: true }, 4), 74);
   assert.equal(deckSize({ loot: true }, 2), 70);  // pas de Butin à 2
 });
+
+test('Tigresse jouée en Pirate : jusqu’à 6 captures par le Skull King (+30 chacune)', async () => {
+  const { BONUSES } = await import('../src/games/skull-king/scoring.js');
+  assert.equal(BONUSES.find(b => b.key === 'sk').max, 6);
+  assert.equal(pts({ bid: 1, tricks: 1, sk: 6 }, 10), 20 + 180);
+});
+
+test('Boulet de canon : bonus complets si exact, aucun sinon', () => {
+  const C = { ...RASCAL, cannonball: true };
+  assert.equal(pts({ bid: 2, tricks: 2, shot: 'boul', b14: 1 }, 6), 40 + 20); // SK scoring unaffected
+  assert.equal(pts({ bid: 3, tricks: 3, shot: 'boul', b14: 1 }, 6, C), 90 + 20);
+  assert.equal(pts({ bid: 3, tricks: 2, shot: 'boul', b14: 1 }, 6, C), 0);
+});

@@ -1,6 +1,6 @@
 /* Service worker : l'app fonctionne hors ligne une fois chargée.
    Incrémenter VERSION à chaque mise en ligne pour forcer la mise à jour du cache. */
-const VERSION = 'ardoise-v1';
+const VERSION = 'ardoise-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
   'src/styles.css', 'src/app.js',

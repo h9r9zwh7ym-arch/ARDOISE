@@ -1,7 +1,7 @@
 # Icônes Ardoise
 
-Les fichiers actuels sont des **icônes provisoires** générées depuis `placeholder.svg`.
-Remplacer par les visuels définitifs (Claude Design) en gardant exactement ces noms :
+Les PNG sont générés depuis `logo.svg` : quatre traits de craie barrés d'un cinquième, sur fond ardoise.
+Ce logo vient du design Ardoise. Pour le remplacer, garder exactement ces noms :
 
 | Fichier | Taille | Usage |
 |---|---|---|
