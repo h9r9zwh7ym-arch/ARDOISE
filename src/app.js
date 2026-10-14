@@ -8,7 +8,7 @@ import {
   toast, openSheet, closeSheet, shake, buzz, shortDate
 } from './core/ui.js';
 
-const VERSION = '1.0';
+const VERSION = '1.1';
 const store = createStore(localStorage);
 let db = store.load();
 let route = { name: 'home', params: {} };
@@ -585,6 +585,47 @@ applyTheme();
 if (db.current && gameById(db.current)?.status === 'playing') route = { name: 'home', params: {} };
 render();
 const splash = document.getElementById('splash');
-setTimeout(() => splash.classList.add('out'), matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 1100);
-setTimeout(() => splash.remove(), 1600);
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+const justUpdated = (() => { try { const v = sessionStorage.getItem('ardoise.updated'); sessionStorage.removeItem('ardoise.updated'); return !!v; } catch (e) { return false; } })();
+if (justUpdated) { splash.remove(); setTimeout(() => toast('Ardoise est à jour'), 300); }
+else {
+  setTimeout(() => splash.classList.add('out'), matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 1100);
+  setTimeout(() => splash.remove(), 1600);
+}
+
+/* ═══════════════ Mise à jour automatique (comme Zeste et ASCEN) ═══════════════
+   Le service worker sert l'app depuis la copie locale et télécharge la dernière version en
+   arrière-plan. Au lancement, si une nouvelle version arrive avant le premier toucher, l'app
+   se recharge d'elle-même ; ensuite, un message propose « Recharger » (et la nouvelle version
+   s'appliquera de toute façon au prochain lancement). Pas de service worker sur claude.ai ni
+   en fichier local. */
+const SW_OK = 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')
+  && !/claude\.ai|claudeusercontent/.test(location.hostname);
+const bootAt = Date.now();
+let touched = false, updTimer = null, updShown = false, lastCheck = Date.now();
+document.addEventListener('pointerdown', () => { touched = true; }, { capture: true, once: true });
+function onUpdateReady() {
+  clearTimeout(updTimer);
+  // on laisse les autres fichiers finir d'arriver avant d'appliquer
+  updTimer = setTimeout(() => {
+    if (!touched && !justUpdated && Date.now() - bootAt < 8000) {
+      try { sessionStorage.setItem('ardoise.updated', '1'); } catch (e) { /* rien */ }
+      location.reload();
+      return;
+    }
+    if (updShown) return;
+    updShown = true;
+    toast('Nouvelle version d’Ardoise prête', { ms: 9000, action: { label: 'Recharger', fn: () => { try { sessionStorage.setItem('ardoise.updated', '1'); } catch (e) { /* rien */ } location.reload(); } } });
+  }, 900);
+}
+if (SW_OK) {
+  try {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'ardoise-updated') onUpdateReady(); });
+    // l'app installée reste souvent ouverte longtemps : on revérifie au retour au premier plan (au plus toutes les 30 min)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastCheck < 30 * 60e3 || !navigator.onLine) return;
+      lastCheck = Date.now();
+      navigator.serviceWorker.ready.then(r => { if (r.active) r.active.postMessage({ type: 'ardoise-check' }); r.update().catch(() => {}); }).catch(() => {});
+    });
+  } catch (e) { /* le service worker est un plus, jamais un prérequis */ }
+}

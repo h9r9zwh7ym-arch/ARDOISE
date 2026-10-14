@@ -85,10 +85,20 @@ export function segmented(items, current, act, label = '', data = {}) {
 }
 
 /* ─── Toast ─── */
-export function toast(msg, ms = 2400) {
+/** toast(message) ou toast(message, { ms, action: { label, fn } }) */
+export function toast(msg, opts = {}) {
+  if (typeof opts === 'number') opts = { ms: opts };
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
-  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms);
+  t.textContent = msg;
+  if (opts.action) {
+    const b = document.createElement('button');
+    b.className = 'toast-act'; b.textContent = opts.action.label;
+    b.addEventListener('click', () => { t.classList.remove('show'); opts.action.fn(); });
+    t.appendChild(b);
+  }
+  t.classList.toggle('has-act', !!opts.action);
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), opts.ms || 2400);
 }
 
 /* ─── Feuille modale (une seule à la fois) ─── */

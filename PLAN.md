@@ -19,7 +19,7 @@ Ardoise est un carnet de scores pour jeux de cartes. C'est une web app installab
 ```
 index.html              coquille : barre du haut, vue, barre d'action, onglets, feuille modale
 manifest.webmanifest    manifest PWA
-sw.js                   service worker (hors ligne) : incrémenter VERSION à chaque mise en ligne
+sw.js                   service worker : hors ligne + mise à jour automatique (comme Zeste et ASCEN)
 icons/                  logo.svg + icônes PNG générées
 fonts/                  Fraunces et Manrope (hébergées, hors ligne)
 src/
@@ -183,6 +183,23 @@ Pour chaque jeu, on suit les mêmes étapes :
   - Animations courtes, désactivées si l'iPhone demande de réduire les animations.
 - **Le total n'est affiché qu'à un endroit**, dans le classement. La feuille de score montre les
   points de chaque manche, et toucher une manche permet de la modifier.
+
+## Mise à jour de l'app
+
+Le fonctionnement est le même que dans Zeste et ASCEN :
+
+1. L'app s'ouvre depuis la copie enregistrée sur l'iPhone, donc instantanément et même hors
+   ligne.
+2. La dernière version est téléchargée en arrière-plan.
+3. Si une nouvelle version arrive pendant le lancement, avant le premier toucher, l'app se
+   recharge d'elle-même et affiche « Ardoise est à jour ».
+4. Si l'écran a déjà été touché, un message « Nouvelle version d'Ardoise prête · Recharger »
+   s'affiche. Sans rien toucher, la nouvelle version s'applique au lancement suivant.
+5. Quand l'app revient au premier plan, elle revérifie s'il y a une mise à jour, au plus toutes
+   les 30 minutes.
+
+Il n'y a rien à faire à chaque mise en ligne. Les fichiers modifiés sont détectés par leur
+empreinte (ETag). Le nom du cache dans `sw.js` ne change que si la liste des fichiers change.
 
 ## Identité visuelle
 
