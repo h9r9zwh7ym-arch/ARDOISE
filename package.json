@@ -1,0 +1,11 @@
+{
+  "name": "ardoise",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ardoise — carnet de scores pour jeux de cartes (PWA)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "npx http-server -c-1 -p 8080 ."
+  }
+}
