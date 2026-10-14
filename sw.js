@@ -3,11 +3,11 @@
 // est servi depuis la copie locale, puis sa dernière version est téléchargée discrètement.
 // Si un fichier a changé, la page est prévenue (« ardoise-updated ») et applique la mise à jour.
 // Hors réseau, le téléchargement échoue en silence et rien ne casse.
-const CACHE = 'ardoise-v6';
+const CACHE = 'ardoise-v7';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './src/styles.css', './src/app.js',
-  './src/core/store.js', './src/core/scoring.js', './src/core/ui.js',
+  './src/core/store.js', './src/core/scoring.js', './src/core/ui.js', './src/core/charts.js',
   './src/games/registry.js',
   './src/games/skull-king/index.js', './src/games/skull-king/scoring.js', './src/games/skull-king/rules-fr.js',
   './src/games/skyjo/index.js', './src/games/skyjo/scoring.js', './src/games/skyjo/rules-fr.js',
