@@ -32,3 +32,10 @@ test('Échanges d’après la manche précédente', () => {
   assert.match(ex[1], /^Dom donne sa meilleure carte à Ana/);
   assert.deepEqual(exchanges(null, 4, []), []);
 });
+
+test('À 2 joueurs : Président et Trou du cul, échange d’une seule carte', () => {
+  assert.deepEqual([0, 1].map(k => roleOf(k, 2)), ['p', 'tdc']);
+  assert.deepEqual(roundPoints({ order: [1, 0], putsch: null }, 2), [0, 1]);
+  const ex = exchanges({ order: [1, 0] }, 2, ['Ana', 'Bob']);
+  assert.deepEqual(ex, ['Ana donne sa meilleure carte à Bob, qui lui en rend 1 de son choix']);
+});

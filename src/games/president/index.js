@@ -6,12 +6,14 @@ import { RULES_HTML } from './rules-fr.js';
 import { esc, avatar, icon, plural } from '../../core/ui.js';
 
 const DECK_OPT = { key: 'deck', label: 'Jeu de cartes', type: 'choice', prominent: true, def: '54',
-  choices: [['36', '36 cartes'], ['54', '54 cartes']], desc: o => o.deck === '36' ? 'Jeu de 36 cartes (6 à As) : l’As est la carte la plus forte.' : 'Jeu de 54 cartes : le 2 est la plus forte, les deux jokers au-dessus (ou retirez-les).' };
+  choices: [['36', '36 cartes'], ['54', '54 cartes']], desc: o => o.deck === '36' ? 'Jeu de 36 cartes : le 6 est la carte la plus forte (7, 8 … Roi, As, 6).' : 'Jeu de 54 cartes : le 2 est la plus forte, les deux jokers au-dessus (ou retirez-les).' };
+/** Carte la plus forte : le 6 avec 36 cartes, le 2 avec 54. */
+const top = o => (o.deck === '36' ? '6' : '2');
 
 const REMINDERS = [
   ['revolution', 'Révolution', 'Un carré inverse l’ordre des cartes jusqu’à la fin de la manche.'],
-  ['two', 'Le 2 bat tout', 'Un 2 seul bat n’importe quelle combinaison et fait rejouer.', o => o.deck !== '36'],
-  ['noTwoEnd', 'Interdit de finir par un 2', 'Celui qui sort sur un 2 devient Trou du cul.', o => o.deck !== '36'],
+  ['two', o => `Le ${top(o)} bat tout`, o => `Un ${top(o)} seul bat n’importe quelle combinaison et fait rejouer.`],
+  ['noTwoEnd', o => `Interdit de finir par un ${top(o)}`, o => `Celui qui sort sur un ${top(o)} devient Trou du cul.`],
   ['bombs', 'Bombes', 'Un carré bat n’importe quelle combinaison, même la carte la plus forte.'],
   ['skip', 'Passage de tour', 'Poser la même valeur fait sauter le joueur suivant.'],
   ['suites', 'Suites', 'Les suites (3-4-5…) sont autorisées.']
@@ -23,8 +25,10 @@ const OPTIONS = [
   { key: 'putsch', label: 'Putsch', type: 'toggle', def: false,
     desc: () => 'Le Trou du cul peut refuser l’échange : s’il finit Président il marque n points, sinon il perd 1 point.' },
   DECK_OPT,
-  ...REMINDERS.map(([key, label, d, when]) => ({ key, label, type: 'toggle', def: false, when, desc: () => d }))
+  ...REMINDERS.map(([key, label, d]) => ({ key, label, type: 'toggle', def: false, desc: typeof d === 'function' ? d : () => d }))
 ];
+/** Libellé d'une option (certains dépendent du jeu de cartes). */
+const labelOf = (l, o) => (typeof l === 'function' ? l(o) : l);
 
 function orderList(game, R, p, names, totals) {
   const n = names.length, pl = P.places(R, n);
@@ -55,8 +59,8 @@ function putschChip(game, R, p, names) {
 export default {
   id: 'president',
   name: 'Président',
-  tagline: 'Trou du cul · 3 à 10 joueurs',
-  players: { min: 3, max: 10 },
+  tagline: 'Trou du cul · 2 à 10 joueurs',
+  players: { min: 2, max: 10 },
   winner: 'highest',
   formats: [],
   options: OPTIONS,
@@ -64,10 +68,10 @@ export default {
   manualEnd: game => game.options.end === 'free',
 
   defaultOptions() { return Object.fromEntries(OPTIONS.map(o => [o.key, o.def])); },
-  visibleOptions(o, n) { return OPTIONS.filter(d => !d.when || d.when(o, n)); },
+  visibleOptions(o, n) { return OPTIONS.filter(d => !d.when || d.when(o, n)).map(d => ({ ...d, label: labelOf(d.label, o) })); },
   optionsSummary(o) {
     const end = { free: 'Partie libre', r10: '10 manches', p30: '30 points' }[o.end || 'free'];
-    const on = OPTIONS.filter(d => d.type === 'toggle' && o[d.key] && (!d.when || d.when(o))).map(d => d.label);
+    const on = OPTIONS.filter(d => d.type === 'toggle' && o[d.key] && (!d.when || d.when(o))).map(d => labelOf(d.label, o));
     return [end, ...on].join(' · ');
   },
 
@@ -107,8 +111,8 @@ export default {
   roundScreen(api, game) {
     const R = game.rounds[game.cur], names = api.names(game), n = names.length;
     const ex = R.putsch !== null && R.putsch !== undefined ? ['Putsch : pas d’échange de cartes cette manche'] : P.exchanges(game.rounds[game.cur - 1], n, names);
-    const rules = REMINDERS.filter(([k, , , when]) => game.options[k] && (!when || when(game.options))).map(([, l]) => l);
-    rules.unshift(game.options.deck === '36' ? '36 cartes, As le plus fort' : '54 cartes');
+    const rules = REMINDERS.filter(([k]) => game.options[k]).map(([, l]) => labelOf(l, game.options));
+    rules.unshift(game.options.deck === '36' ? '36 cartes, 6 le plus fort' : '54 cartes');
     const st = statusOf(game, R);
     return {
       title: `Manche ${game.cur + 1}`,

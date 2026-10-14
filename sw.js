@@ -3,7 +3,7 @@
 // est servi depuis la copie locale, puis sa dernière version est téléchargée discrètement.
 // Si un fichier a changé, la page est prévenue (« ardoise-updated ») et applique la mise à jour.
 // Hors réseau, le téléchargement échoue en silence et rien ne casse.
-const CACHE = 'ardoise-v7';
+const CACHE = 'ardoise-v8';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './src/styles.css', './src/app.js',
