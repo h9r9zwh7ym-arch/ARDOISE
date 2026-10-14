@@ -36,6 +36,7 @@ src/
       scoring.js        calcul des points (pur, testé)
       rules-fr.js       règles affichées dans l'app
       RULES.md          règles retenues, variantes, sources, décisions
+    skyjo/              même organisation (index.js, scoring.js, rules-fr.js, RULES.md)
 tests/                  npm test (node --test, sans dépendance)
 ```
 
@@ -55,9 +56,11 @@ export default {
   setup(game),                             // prépare les manches
   isOver(game),
   roundPoints(game, r),                    // points de chaque joueur pour la manche r
-  finalize?(game, totals, upto),           // ajustement des totaux (ex. doublement au Skyjo)
+  prepareRound?(game),                     // manche suivante quand leur nombre n'est pas fixé (Skyjo)
+  finalize?(game, totals, upto),           // ajustement global des totaux (inutilisé pour l'instant)
+  firstPlayerLabel?,                       // « Donne en premier » (Skull King) : ordre des joueurs modifiable
   validateRound(game, round),              // { ok, msg }
-  roundHead(game, r), progress(game), nextLabel(game), endStats(game, names),
+  roundHead(game, r), progress(game, totals), nextLabel(game), endStats(game, names),
   roundScreen(api, game),                  // écran de saisie de la manche en cours
   editorBody(api, game, draft),            // contenu de « Modifier la manche »
   actions(api),                            // gestionnaires des boutons du module
@@ -113,7 +116,7 @@ est conservée intacte, par sécurité.
 |---|---|---|
 | 0 | Plan, extraction du calcul Skull King + tests, 4 bugs corrigés, manifest PWA | ✅ fait |
 | 1 | Noyau Ardoise : accueil, joueurs réutilisables, historique, stats, reprise de l'ancienne sauvegarde ; Skull King devient le 1er module ; nouveau design | ✅ fait |
-| 2 | Skyjo (RULES.md + tests) | à faire |
+| 2 | Skyjo et Skyjo Action : saisie du total de chaque grille, doublement automatique, fin à 100 points (RULES.md + tests) | ✅ fait |
 | 3 | Jass : Schieber, puis Coiffeur, Différenzler… | à faire |
 | 4 | Trou du cul / Président | à faire |
 | 5 | Menteur (version à préciser avec toi) | à faire |
@@ -225,4 +228,7 @@ classement, saisie d'une manche, fin de partie, joueurs).
 
 ## Questions ouvertes
 
-1. **Menteur :** quelle version exactement ? Elle est à préciser avant la phase 5.
+1. **Skyjo :** en cas d'égalité pour la victoire, l'app déclare des gagnants ex æquo (la notice
+   n'en parle pas). Faut-il proposer des variantes « maison » (partie en 50 points, pas de
+   doublement en cas d'égalité) ?
+2. **Menteur :** quelle version exactement ? Elle est à préciser avant la phase 5.

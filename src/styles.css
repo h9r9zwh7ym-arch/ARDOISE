@@ -300,3 +300,9 @@ button.row:active, a.row:active { opacity: .7; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
 }
+
+/* ═══ Saisie d'un score (Skyjo) ═══ */
+.score-in { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.field.score { width: 84px; min-height: 52px; text-align: center; font-size: 22px; font-weight: 800; padding: 0 6px; }
+.sign-btn { width: 40px; font-size: 22px; font-weight: 700; color: var(--ink-2); }
+.chip .ic { display: inline-block; vertical-align: -3px; margin-right: 2px; }

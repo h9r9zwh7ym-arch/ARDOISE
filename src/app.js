@@ -8,7 +8,7 @@ import {
   toast, openSheet, closeSheet, shake, buzz, shortDate
 } from './core/ui.js';
 
-const VERSION = '1.1';
+const VERSION = '1.2';
 const store = createStore(localStorage);
 let db = store.load();
 let route = { name: 'home', params: {} };
@@ -23,6 +23,10 @@ const nameOf = id => (playerById(id) || { name: '?' }).name;
 const namesOf = game => game.playerIds.map(nameOf);
 const modOf = game => getGame(game.gameId);
 const gameTotals = (game, upto) => totals(modOf(game), game, upto);
+function progressOf(game) {
+  const p = modOf(game).progress(game, gameTotals(game));
+  return { ...p, ratio: p.ratio ?? played(game) / p.total };
+}
 
 /* ═══════════════ Navigation et rendu ═══════════════ */
 function go(name, params = {}) {
@@ -78,6 +82,9 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 /* ═══════════════ Morceaux d'interface communs ═══════════════ */
+// Vert / rouge seulement quand des points en plus sont une bonne nouvelle (Skull King) ;
+// au Skyjo, où le plus petit score gagne, les points restent neutres.
+const tone = (mod, v) => (mod.winner === 'lowest' ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '');
 function rankCard(game, animate) {
   const mod = modOf(game), names = namesOf(game), rows = ranking(mod, game), n = played(game);
   const html = `<section class="section"><div class="section-h"><h2 class="label">Classement</h2><span class="label">Total</span></div>
@@ -86,7 +93,7 @@ function rankCard(game, animate) {
       <span class="rank-pos">${r.rank === 1 && n ? icon('crown', 20, 'role="img" aria-label="En tête"') : r.rank}</span>
       ${avatar(names[r.i], r.rank === 1 && n ? 'lead' : '')}
       <span class="rank-n">${esc(names[r.i])}</span>
-      ${n ? `<span class="rank-d ${r.delta > 0 ? 'pos' : r.delta < 0 ? 'neg' : ''}">${sign(r.delta)}</span>` : ''}
+      ${n ? `<span class="rank-d ${tone(mod, r.delta)}">${sign(r.delta)}</span>` : ''}
       <span class="rank-total">${r.total}</span>
     </div>`).join('')}</div></section>`;
   const order = rows.map(r => r.i), prev = lastOrder[game.id];
@@ -119,7 +126,7 @@ function scoreSheet(game) {
   }
   h += '</tr></thead><tbody>';
   names.forEach((nm, i) => {
-    h += `<tr><td class="nm">${esc(nm)}</td>${pts.map(p => `<td class="${p[i] > 0 ? 'pos' : p[i] < 0 ? 'neg' : ''}">${sign(p[i])}</td>`).join('')}</tr>`;
+    h += `<tr><td class="nm">${esc(nm)}</td>${pts.map(p => `<td class="${tone(mod, p[i])}">${mod.winner === 'lowest' ? p[i] : sign(p[i])}</td>`).join('')}</tr>`;
   });
   return `<section class="section"><div class="section-h"><h2 class="label">Feuille de score</h2></div>
     <div class="card pad"><div class="sheet-wrap">${h}</tbody></table></div>
@@ -150,13 +157,13 @@ const SCREENS = {
       : db.games.filter(g => g.status === 'playing').sort((a, b) => b.startedAt - a.startedAt)[0] || null;
     let body = '';
     if (playing) {
-      const mod = modOf(playing), rows = ranking(mod, playing), names = namesOf(playing), p = mod.progress(playing);
+      const mod = modOf(playing), rows = ranking(mod, playing), names = namesOf(playing), p = progressOf(playing);
       const lead = played(playing) ? `${esc(names[rows[0].i])} mène` : 'Aucune manche jouée';
       body += `<button class="resume" data-act="go" data-to="game" data-id="${playing.id}">
         <span class="resume-k">Partie en cours</span>
         <span class="resume-main"><span><span class="resume-t">${mod.name}</span><br><span class="resume-s">${p.label} · ${esc(names.join(', '))}</span></span>
           <span><span class="resume-s">${lead}</span><br><span class="resume-v">${played(playing) ? rows[0].total : ''}</span></span></span>
-        <span class="track"><i style="width:${played(playing) / p.total * 100}%"></i></span>
+        <span class="track"><i style="width:${p.ratio * 100}%"></i></span>
         <span class="resume-go">Reprendre ${icon('next', 20)}</span>
       </button>`;
     }
@@ -176,13 +183,13 @@ const SCREENS = {
     if (!setup) return SCREENS.home();
     if (!setup.gameId) {
       return { title: 'Nouvelle partie', sub: 'Choisir un jeu', back: { to: 'home' },
-        body: `<ul class="card list">${GAMES.map(m => `<li><button class="row" data-act="pickGame" data-g="${m.id}">
+        body: `<ul class="card list">${gamesByRecency().map(m => `<li><button class="row" data-act="pickGame" data-g="${m.id}">
           <div class="row-txt"><span class="row-t">${m.name}</span><span class="row-s">${m.tagline}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>`).join('')}</ul>` };
     }
     const mod = getGame(setup.gameId), n = setup.playerIds.length;
     const sel = setup.playerIds.map((id, k) => `<li class="prow"><div class="prow-main">${avatar(nameOf(id))}
-      <div class="prow-txt"><span class="prow-n">${esc(nameOf(id))}</span>${k === 0 ? '<span class="prow-s">Donne en premier</span>' : ''}</div>
-      ${k > 0 ? `<button class="icon-btn plain" data-act="setupUp" data-k="${k}" aria-label="Faire monter ${esc(nameOf(id))}"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ''}
+      <div class="prow-txt"><span class="prow-n">${esc(nameOf(id))}</span>${k === 0 && mod.firstPlayerLabel ? `<span class="prow-s">${mod.firstPlayerLabel}</span>` : ''}</div>
+      ${k > 0 && mod.firstPlayerLabel ? `<button class="icon-btn plain" data-act="setupUp" data-k="${k}" aria-label="Faire monter ${esc(nameOf(id))}"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ''}
       <button class="icon-btn plain" data-act="setupRemove" data-k="${k}" aria-label="Retirer ${esc(nameOf(id))}">${icon('close', 20)}</button></div></li>`).join('');
     const sugg = recentPlayers(db).filter(p => !setup.playerIds.includes(p.id)).slice(0, 6);
     const full = n >= mod.players.max;
@@ -196,8 +203,8 @@ const SCREENS = {
       </section>
       <section class="section"><h2 class="label">Partie</h2>
         <ul class="card list">
-          <li><button class="row" data-act="setupFormat"><div class="row-txt"><span class="row-t">${mod.formats.find(f => f.id === setup.format).name}</span>
-            <span class="row-s">${mod.formatSummary(setup, Math.max(n, mod.players.min))}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>
+          ${mod.formats.length > 1 ? `<li><button class="row" data-act="setupFormat"><div class="row-txt"><span class="row-t">${mod.formats.find(f => f.id === setup.format).name}</span>
+            <span class="row-s">${mod.formatSummary(setup, Math.max(n, mod.players.min))}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>` : ''}
           <li><button class="row" data-act="setupOptions"><div class="row-txt"><span class="row-t">Règles et variantes</span>
             <span class="row-s">${mod.optionsSummary(setup.options, n)}</span></div>${icon('chevron', 18, 'class="ic chev"')}</button></li>
         </ul></section>`;
@@ -210,13 +217,13 @@ const SCREENS = {
     const g = gameById(p.id);
     if (!g) return SCREENS.home();
     if (g.status === 'done') { route = { name: 'end', params: { id: g.id } }; return SCREENS.end(route.params, opts); }
-    const mod = modOf(g), pr = mod.progress(g);
+    const mod = modOf(g), pr = progressOf(g);
     const rk = rankCard(g, p.animate);
     p.animate = false;
     return {
       title: mod.name, sub: pr.label, back: { to: 'home', label: 'Accueil' },
       right: `<button class="icon-btn" data-act="menu" aria-label="Options de la partie">${icon('more')}</button>`,
-      body: `<div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="${pr.total}" aria-valuenow="${played(g)}"><i style="width:${played(g) / pr.total * 100}%"></i></div>
+      body: `<div class="track" role="progressbar" aria-label="Progression de la partie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pr.ratio * 100)}"><i style="width:${pr.ratio * 100}%"></i></div>
         ${rk.html}${scoreSheet(g)}`,
       bar: `<button class="btn btn-primary" data-act="go" data-to="round" data-id="${g.id}">${mod.nextLabel(g)} ${icon('next', 20)}</button>`,
       after: rk.after
@@ -306,7 +313,7 @@ function renderEditor() {
   const { body, status } = mod.editorBody(api, g, draft);
   openSheet({
     title: `Modifier la manche ${draft.r + 1}`,
-    sub: `${mod.roundHead(g, draft.r).long} · les totaux seront recalculés`,
+    sub: [mod.roundHead(g, draft.r).long, 'les totaux seront recalculés'].filter(Boolean).join(' · '),
     body,
     foot: `<div class="tally ${status.ok ? 'ok' : 'ko'}" id="ed-tally" role="status">${status.html}</div>
       <div class="btn-row"><button class="btn btn-secondary" data-act="sheetClose">Annuler</button>
@@ -415,7 +422,7 @@ function playerSheet(id) {
 
 function shareText(g) {
   const mod = modOf(g), names = namesOf(g), rows = ranking(mod, g);
-  return `${mod.name} — ${mod.progress(g).label}\n\n` + rows.map(r => `${r.rank}. ${names[r.i]} — ${r.total} pts`).join('\n') + '\n\nAvec Ardoise';
+  return `${mod.name} — ${progressOf(g).label}\n\n` + rows.map(r => `${r.rank}. ${names[r.i]} — ${r.total} pts`).join('\n') + '\n\nAvec Ardoise';
 }
 
 /* ═══════════════ API offerte aux modules de jeu ═══════════════ */
@@ -439,14 +446,21 @@ const api = {
       save(); buzz(30);
       go('end', { id: g.id, celebrate: true });
     } else {
+      if (mod.prepareRound) mod.prepareRound(g);
       save(); buzz(16);
       go('game', { id: g.id, animate: true });
     }
-  }
+  },
+  previewTotals: (g, r, round) => totals(modOf(g), { ...g, rounds: g.rounds.map((x, k) => (k === r ? round : x)) })
 };
 GAMES.forEach(m => on(m.actions(api)));
 
 /* ═══════════════ Actions ═══════════════ */
+function gamesByRecency() {
+  const last = {};
+  db.games.forEach(g => { last[g.gameId] = Math.max(last[g.gameId] || 0, g.startedAt || 0); });
+  return GAMES.slice().sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0));
+}
 function startSetup(gameId) {
   const last = db.games.slice().sort((a, b) => b.startedAt - a.startedAt)[0];
   const gid = gameId || (GAMES.length === 1 ? GAMES[0].id : null);
@@ -513,9 +527,25 @@ on({
   edSave: () => {
     const g = gameById(draft.gameId), v = modOf(g).validateRound(g, draft.round);
     if (!v.ok) { toast(v.msg); shake(document.getElementById('ed-tally')); return; }
-    const r = draft.r;
-    g.rounds[r] = draft.round; draft = null; save();
+    const r = draft.r, mod = modOf(g);
+    g.rounds[r] = draft.round; draft = null;
     closeSheet(true); buzz(16);
+    // Une modification peut changer la fin de partie (Skyjo : passer ou non la barre des 100 points)
+    const over = mod.isOver(g);
+    if (g.status === 'playing' && over && mod.prepareRound) {
+      g.rounds.length = g.cur; g.status = 'done'; g.endedAt = Date.now();
+      if (db.current === g.id) db.current = null;
+      save(); toast(`Manche ${r + 1} modifiée · la partie est terminée`);
+      go('end', { id: g.id });
+      return;
+    }
+    if (g.status === 'done' && !over && mod.prepareRound) {
+      g.status = 'playing'; g.endedAt = null; g.cur = g.rounds.length; mod.prepareRound(g); db.current = g.id;
+      save(); toast(`Manche ${r + 1} modifiée · la partie reprend`);
+      go('game', { id: g.id });
+      return;
+    }
+    save();
     toast(`Manche ${r + 1} modifiée · totaux recalculés`);
     render();
   },

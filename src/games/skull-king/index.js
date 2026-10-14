@@ -153,6 +153,7 @@ export default {
   tagline: 'Plis et paris de pirates · 2 à 8 joueurs',
   players: { min: 2, max: 8 },
   winner: 'highest',
+  firstPlayerLabel: 'Donne en premier',
   formats: FORMATS,
   defaultFormat: 'classique',
   options: OPTIONS,
@@ -191,7 +192,7 @@ export default {
   roundHead(game, r) { const c = game.rounds[r].cards; return { label: `M${r + 1}`, sub: `${c} c.`, long: plural(c, 'carte', 'cartes') }; },
   progress(game) {
     const total = game.rounds.length;
-    return { total, label: `Manche ${Math.min(game.cur + 1, total)} sur ${total}` };
+    return { total, ratio: Math.min(game.cur, total) / total, label: `Manche ${Math.min(game.cur + 1, total)} sur ${total}` };
   },
   nextLabel(game) {
     const R = game.rounds[game.cur];
