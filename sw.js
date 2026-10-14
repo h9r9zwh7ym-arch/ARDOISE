@@ -19,7 +19,9 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    // Zeste, ASCEN et Ardoise partagent la même origine (h9r9zwh7ym-arch.github.io), donc le même
+    // stockage de caches : on ne supprime que les anciens caches d'Ardoise, jamais ceux des autres apps.
+    .then(keys => Promise.all(keys.filter(k => k.startsWith('ardoise-') && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 

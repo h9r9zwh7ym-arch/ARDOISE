@@ -219,7 +219,7 @@ classement, saisie d'une manche, fin de partie, joueurs).
 - La Tigresse jouée comme Pirate puis capturée par le Skull King vaut +30.
 - Boulet de canon : la règle de l'app d'origine est confirmée par les règles officielles
   (voir `RULES.md`).
-- Hébergement : GitHub Pages (<https://h9r9zwh7ym-arch.github.io/Skull_King/>), servi depuis
+- Hébergement : GitHub Pages (<https://h9r9zwh7ym-arch.github.io/ARDOISE/>), servi depuis
   `main`. Les parties enregistrées sur le téléphone (`skullking.v3`) sont reprises
   automatiquement.
 
