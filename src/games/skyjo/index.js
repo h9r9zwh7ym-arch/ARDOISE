@@ -6,13 +6,8 @@ import * as SJ from './scoring.js';
 import { RULES_HTML } from './rules-fr.js';
 import { esc, avatar, icon } from '../../core/ui.js';
 
-const OPTIONS = [
-  { key: 'edition', label: 'Édition', type: 'choice', def: 'classic',
-    choices: [['classic', 'Skyjo'], ['action', 'Skyjo Action']],
-    desc: o => o.edition === 'action'
-      ? 'Comptez aussi 10 points par carte action restée dans la grille, 0 par étoile, −10 ou −15 par série d’étoiles défaussée.'
-      : 'Comptez la valeur des cartes restées dans la grille.' }
-];
+// Pas de variante : la notice officielle n'en propose aucune.
+const OPTIONS = [];
 
 const fmtScore = v => (typeof v === 'number' ? String(v) : '');
 
@@ -52,7 +47,7 @@ function roundScreen(api, game) {
   const st = statusOf(R);
   return {
     title: `Manche ${game.cur + 1}`,
-    sub: game.options.edition === 'action' ? 'Skyjo Action · fin à 100 points' : 'Fin de partie à 100 points',
+    sub: 'Fin de partie à 100 points',
     right: `<button class="icon-btn" data-act="rules" data-game="skyjo" aria-label="Règles">${icon('book')}</button>`,
     body: `<p class="hint">Saisissez le total de chaque grille, puis indiquez qui a retourné toutes ses cartes en premier.</p>
       <ul class="card list">${names.map((n, i) => scoreRow(R, i, n, 'sj', t[i])).join('')}</ul>`,
@@ -80,9 +75,9 @@ export default {
   options: OPTIONS,
   rulesHtml: RULES_HTML,
 
-  defaultOptions() { return { edition: 'classic' }; },
+  defaultOptions() { return {}; },
   visibleOptions() { return OPTIONS; },
-  optionsSummary(o) { return o.edition === 'action' ? 'Skyjo Action' : 'Skyjo classique'; },
+  optionsSummary() { return 'Règles officielles'; },
 
   setup(game) { game.rounds = [SJ.makeRound(game.playerIds.length)]; game.cur = 0; return game; },
   /** Manche suivante (le nombre de manches n'est pas fixé à l'avance). */

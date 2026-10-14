@@ -7,13 +7,15 @@ paiements.
 ## Dans l'app
 
 Ardoise suit les **jetons** de chaque joueur face au croupier. Le croupier n'est pas un joueur
-de l'app. Chaque joueur part avec le même nombre de jetons (100, 500 ou 1000). À chaque manche,
-on saisit pour chaque joueur :
-- sa **mise** (reprise de la manche précédente ; 0 = il ne joue pas) ;
-- le **résultat** de chaque main : Perdu, Égalité, Gagné, Blackjack (et Abandon si autorisé) ;
-- **Doublé** : mise doublée ;
-- **Séparer (split)** : une main de plus avec la même mise, jusqu'à 4 mains ;
-- **Assurance** (option) : moitié de la mise, avec la case « le croupier avait un blackjack ».
+de l'app. Chaque joueur part avec le même nombre de jetons (100, 500 ou 1000). Une manche se
+saisit en deux étapes, comme à la table :
+
+1. **Mises**, avant la distribution : un compteur par joueur (de 5 en 5), avec des montants
+   rapides 10, 25, 50, 100 et « Passe ». Les mises de la manche précédente sont reprises.
+2. **Résultats**, une fois la main jouée : 4 gros boutons par joueur (Perdu, Égalité, Gagné,
+   Blackjack), qui affichent **ce que le joueur gagne ou perd avant même de toucher**. « Plus
+   d'options » ouvre les cas rares : mise doublée, séparer (split), assurance. Abandon apparaît
+   s'il est autorisé.
 
 | Règle | Paiement retenu | Source |
 |---|---|---|

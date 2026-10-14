@@ -56,3 +56,22 @@ test('Différenzler : pénalité = écart, total des points = 157', () => {
   assert.equal(J.checkDiff(R).ok, true);
   assert.equal(J.checkDiff({ pred: [40, 30, 50, 37], pts: [40, 20, 60, 30] }).ok, false);
 });
+
+test('Jass à deux : 2 joueurs, chacun ses points, pas de multiplicateurs ni de Match', async () => {
+  const { getGame } = await import('../src/games/registry.js');
+  const JA = getGame('jass');
+  const o = { ...JA.defaultOptions(), variant: 'deux', target2: '500' };
+  assert.deepEqual(JA.players(o), { min: 2, max: 2 });
+  const g = { status: 'playing', playerIds: ['a', 'b'], options: o };
+  JA.setup(g);
+  assert.equal(JA.sideCount(g), 2);
+  assert.deepEqual(JA.sides(g, ['Ana', 'Bob']), ['Ana', 'Bob']);
+  g.rounds[0] = { ...J.schieberRound(), trump: 'pique', pts: 100 };
+  assert.deepEqual(JA.roundPoints(g, 0), [100, 57]);                 // pas de ×2 à deux
+  g.cur = 1; JA.prepareRound(g);
+  g.rounds[1] = { ...J.schieberRound(), pts: 157 }; g.rounds[2] = { ...J.schieberRound(), pts: 157 };
+  g.cur = 3;
+  assert.equal(JA.isOver(g), false);                                 // 100 + 157 + 157 = 414 < 500
+  g.rounds.push({ ...J.schieberRound(), pts: 157 }); g.cur = 4;
+  assert.equal(JA.isOver(g), true);                                  // 571 ≥ 500
+});

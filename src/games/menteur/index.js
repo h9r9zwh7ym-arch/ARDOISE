@@ -5,7 +5,10 @@ import * as M from './scoring.js';
 import { RULES_HTML } from './rules-fr.js';
 import { esc, avatar, icon, stepper } from '../../core/ui.js';
 
+const DECK_OPT = { key: 'deck', label: 'Jeu de cartes', type: 'choice', prominent: true, def: '54',
+  choices: [['36', '36 cartes'], ['54', '54 cartes']], desc: o => o.deck === '36' ? 'Jeu de 36 cartes : à beaucoup de joueurs, mélangez deux jeux.' : 'Jeu de 54 cartes : retirez les jokers, ou gardez-les comme cartes libres.' };
 const OPTIONS = [
+  DECK_OPT,
   { key: 'end', label: 'Fin de partie', type: 'choice', def: 'free',
     choices: [['free', 'Libre'], ['r5', '5 manches'], ['r10', '10 manches']],
     desc: o => ({ free: 'Vous arrêtez quand vous voulez avec « Terminer la partie ».', r5: 'La partie s’arrête après 5 manches.', r10: 'La partie s’arrête après 10 manches.' })[o.end] }
@@ -39,7 +42,7 @@ export default {
   manualEnd: game => game.options.end === 'free',
   unit: n => (Math.abs(n) > 1 ? 'cartes' : 'carte'),
 
-  defaultOptions() { return { end: 'free' }; },
+  defaultOptions() { return { end: 'free', deck: '54' }; },
   visibleOptions() { return OPTIONS; },
   optionsSummary(o) { return { free: 'Partie libre', r5: '5 manches', r10: '10 manches' }[o.end || 'free']; },
 

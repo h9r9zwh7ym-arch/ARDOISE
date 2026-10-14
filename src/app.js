@@ -4,11 +4,11 @@ import { createStore, playerByName, normName, uid } from './core/store.js';
 import { played, totals, ranking, winners, playerStats, recentPlayers, winnerMode } from './core/scoring.js';
 import { GAMES, getGame } from './games/registry.js';
 import {
-  on, installDispatcher, esc, sign, plural, icon, LOGO, avatar, toggle, segmented,
+  on, installDispatcher, esc, sign, num, plural, icon, LOGO, avatar, toggle, segmented,
   toast, openSheet, closeSheet, shake, buzz, shortDate
 } from './core/ui.js';
 
-const VERSION = '1.4';
+const VERSION = '1.5';
 const store = createStore(localStorage);
 let db = store.load();
 let route = { name: 'home', params: {} };
@@ -35,11 +35,27 @@ function progressOf(game) {
 }
 
 /* ═══════════════ Navigation et rendu ═══════════════ */
+// Profondeur de navigation : on glisse vers la gauche en avançant, vers la droite en revenant
+const DEPTH = { home: 0, players: 0, history: 1, newgame: 1, newgamePick: 1, game: 1, end: 1, round: 2 };
 function go(name, params = {}) {
   closeSheet(true);
+  const from = DEPTH[route.name] ?? 0, to = DEPTH[name] ?? 0;
   route = { name, params };
-  render({ enter: true });
+  render({ enter: to > from ? 'fwd' : to < from ? 'back' : 'fade' });
   window.scrollTo(0, 0);
+}
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Compteur animé (totaux du classement) : de from à to, en ralentissant à l'arrivée. */
+function countUp(el, from, to, ms = 700) {
+  if (reducedMotion() || from === to) { el.textContent = num(to); return; }
+  const t0 = performance.now();
+  const step = t => {
+    const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+    const v = from + (to - from) * e;
+    el.textContent = num(Number.isInteger(from) && Number.isInteger(to) ? Math.round(v) : Math.round(v * 10) / 10);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 let pendingTick = null;
@@ -72,8 +88,8 @@ function render(opts = {}) {
        <div class="tb-txt">${s.sub ? `<span class="tb-sub">${s.sub}</span>` : ''}<h1 class="tb-title">${s.title}</h1></div>${s.right || ''}`;
   const view = document.getElementById('view');
   view.innerHTML = s.body;
-  view.classList.remove('enter');
-  if (opts.enter) { void view.offsetWidth; view.classList.add('enter'); }
+  view.classList.remove('enter', 'fwd', 'back', 'fade');
+  if (opts.enter) { void view.offsetWidth; view.classList.add('enter', opts.enter === true ? 'fade' : opts.enter); }
   document.getElementById('bar').innerHTML = s.bar || '';
   const tabs = document.getElementById('tabs');
   tabs.hidden = !s.tab;
@@ -101,15 +117,20 @@ function rankCard(game, animate) {
       ${avatar(names[r.i], r.rank === 1 && n ? 'lead' : '')}
       <span class="rank-n">${esc(names[r.i])}</span>
       ${n ? `<span class="rank-d ${tone(mod, game, r.delta)}">${sign(r.delta)}</span>` : ''}
-      <span class="rank-total">${r.total}</span>
+      <span class="rank-total">${num(animate ? r.total - r.delta : r.total)}</span>
     </div>`).join('')}</div></section>`;
-  const order = rows.map(r => r.i), prev = lastOrder[game.id];
+  const order = rows.map(r => r.i);
+  const before = animate && n > 0 ? ranking(mod, { ...game, status: 'playing', cur: n - 1 }) : null;
+  const prev = before ? before.map(r => r.i) : lastOrder[game.id];
   lastOrder[game.id] = order;
   const after = () => {
     if (!animate || !prev) return;
-    document.querySelectorAll('.rank-row').forEach(el => {
+    document.querySelectorAll('.rank-row').forEach((el, k) => {
       const i = +el.dataset.pi, from = prev.indexOf(i), to = order.indexOf(i);
       el.classList.add('flash');
+      const tot = el.querySelector('.rank-total'), d = el.querySelector('.rank-d'), row = rows.find(r => r.i === i);
+      if (tot && row) countUp(tot, row.total - row.delta, row.total);
+      if (d) { d.style.animationDelay = `${120 + k * 70}ms`; d.classList.add('pop'); }
       if (from >= 0 && from !== to) {
         el.style.transform = `translateY(${(from - to) * el.offsetHeight}px)`;
         el.style.transition = 'none';
@@ -147,7 +168,7 @@ function gameRow(g) {
   if (g.status === 'done') {
     const w = winners(mod, g), t = gameTotals(g);
     title = `${w.map(i => esc(names[i])).join(' et ')} ${w.length > 1 ? 'à égalité' : teamGame(g) ? 'gagnent' : 'gagne'}`;
-    val = `<span class="row-v">${t[w[0]]}</span>`;
+    val = `<span class="row-v">${num(t[w[0]])}</span>`;
   } else title = 'En cours';
   return `<li><button class="row" data-act="open" data-id="${g.id}">
     <div class="row-txt"><span class="row-t">${mod.name} · ${title}</span>
@@ -169,7 +190,7 @@ const SCREENS = {
       body += `<button class="resume" data-act="go" data-to="game" data-id="${playing.id}">
         <span class="resume-k">Partie en cours</span>
         <span class="resume-main"><span><span class="resume-t">${mod.name}</span><br><span class="resume-s">${p.label} · ${esc(playerNamesOf(playing).join(', '))}</span></span>
-          <span><span class="resume-s">${lead}</span><br><span class="resume-v">${played(playing) ? rows[0].total : ''}</span></span></span>
+          <span><span class="resume-s">${lead}</span><br><span class="resume-v">${played(playing) ? num(rows[0].total) : ''}</span></span></span>
         ${p.ratio === null ? '' : `<span class="track"><i style="width:${p.ratio * 100}%"></i></span>`}
         <span class="resume-go">Reprendre ${icon('next', 20)}</span>
       </button>`;
@@ -228,16 +249,17 @@ const SCREENS = {
     if (!g) return SCREENS.home();
     if (g.status === 'done') { route = { name: 'end', params: { id: g.id } }; return SCREENS.end(route.params, opts); }
     const mod = modOf(g), pr = progressOf(g);
+    const prevRatio = p.animate && played(g) > 0 ? progressOf({ ...g, cur: played(g) - 1 }).ratio : pr.ratio;
     const rk = rankCard(g, p.animate);
     p.animate = false;
     return {
       title: mod.name, sub: pr.label, back: { to: 'home', label: 'Accueil' },
       right: `<button class="icon-btn" data-act="menu" aria-label="Options de la partie">${icon('more')}</button>`,
-      body: `${pr.ratio === null ? '' : `<div class="track" role="progressbar" aria-label="Progression de la partie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pr.ratio * 100)}"><i style="width:${pr.ratio * 100}%"></i></div>`}
+      body: `${pr.ratio === null ? '' : `<div class="track" role="progressbar" aria-label="Progression de la partie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pr.ratio * 100)}"><i id="prog" style="width:${(prevRatio ?? pr.ratio) * 100}%"></i></div>`}
         ${rk.html}${scoreSheet(g)}
         ${(typeof mod.manualEnd === 'function' ? mod.manualEnd(g) : mod.manualEnd) && played(g) ? `<button class="btn btn-secondary" data-act="endGame">Terminer la partie</button>` : ''}`,
       bar: `<button class="btn btn-primary" data-act="go" data-to="round" data-id="${g.id}">${mod.nextLabel(g)} ${icon('next', 20)}</button>`,
-      after: rk.after
+      after: () => { rk.after(); const bar = document.getElementById('prog'); if (bar && pr.ratio !== null) requestAnimationFrame(() => { bar.style.width = `${pr.ratio * 100}%`; }); }
     };
   },
 
@@ -260,7 +282,7 @@ const SCREENS = {
         ${icon('crown', 40)}
         <span class="win-k">${mod.name} · ${roundsLabel(mod, g.rounds.length)}</span>
         <h2 class="win-n">${tie ? `${w.map(i => esc(names[i])).join(' et ')}` : `${esc(names[w[0]])} ${teamGame(g) ? 'gagnent' : 'gagne'}`}</h2>
-        <span class="win-p">${tie ? `Égalité à ${t[w[0]]} ${unitOf(mod, t[w[0]])}${mod.tieHint ? ` — ${mod.tieHint}` : ''}` : `${t[w[0]]} ${unitOf(mod, t[w[0]])}`}</span>
+        <span class="win-p">${tie ? `Égalité à ${num(t[w[0]])} ${unitOf(mod, t[w[0]])}${mod.tieHint ? ` — ${mod.tieHint}` : ''}` : `${num(t[w[0]])} ${unitOf(mod, t[w[0]])}`}</span>
       </section>
       ${rankCard(g, false).html}
       <div class="tiles">${mod.endStats(g, names).map(s => `<div class="tile"><b>${s.v}</b><span>${s.l}</span></div>`).join('')}</div>
@@ -485,6 +507,8 @@ function initSetupGame(gid, last) {
   setup.gameId = gid;
   setup.format = same ? last.format : mod.defaultFormat;
   setup.options = same ? { ...mod.defaultOptions(), ...last.options } : mod.defaultOptions();
+  // jeu de cartes possédé (36 ou 54) : on reprend le dernier choix, quel que soit le jeu
+  if (db.prefs.deck && mod.options.some(o => o.key === 'deck')) setup.options.deck = db.prefs.deck;
 }
 function addSetupPlayer(id) {
   const mod = getGame(setup.gameId);
@@ -530,6 +554,7 @@ on({
   },
   startGame: () => {
     const mod = getGame(setup.gameId);
+    if (setup.options.deck) db.prefs.deck = setup.options.deck;
     const g = { id: uid('g'), gameId: mod.id, status: 'playing', startedAt: Date.now(), endedAt: null,
       playerIds: setup.playerIds.slice(), format: setup.format, options: { ...setup.options }, dealer: 0 };
     mod.setup(g);

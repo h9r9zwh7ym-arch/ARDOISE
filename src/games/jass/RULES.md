@@ -62,6 +62,26 @@ peut pas être reprise) et les points faits, ou un Match.
 La saisie se fait en deux étapes : les annonces, puis les points faits. La somme des points
 doit faire 157.
 
+## Jass à deux (« Schieber zu Zweit »)
+
+Source : <https://jassverzeichnis.ch/schieber-zu-zweit>, présentée comme « die einfache Variante
+eines zweier Schiebers ».
+
+- Chaque joueur reçoit deux paquets de 9 cartes face cachée. L'adversaire du donneur annonce
+  l'atout. On joue le premier paquet, puis le second.
+- Les points sont comptés pour chaque joueur. Le total fait 157 par jeu, puisque les 36 cartes
+  sont jouées. Objectif : « 500 oder auf 1000 Punkte ».
+- Weis en option (« im vorhin ebenfalls das Weisen zu erlauben »). L'app y ajoute les Stöck
+  dans la même option. Pas de multiplicateurs ni de Match : la source n'en parle pas.
+
+Autres jeux à deux sur le même site, plus complexes et non intégrés : Zweier-Sidi (avec
+enchères), Schaggi-Haas, Seetaler, Pandur.
+
+## Jeu de cartes
+
+Au début de la partie, on choisit le jeu utilisé : 36 cartes (jeu de Jass) ou 54 cartes. Avec
+54 cartes, l'app rappelle de retirer les 2, 3, 4, 5 et les jokers.
+
 ## Points non précisés par les sources : à valider
 
 1. **Stöck et multiplicateurs.** Aucune source ne dit si les Stöck sont multipliés. L'app les
