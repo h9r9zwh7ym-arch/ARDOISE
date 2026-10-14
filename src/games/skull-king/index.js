@@ -23,6 +23,8 @@ const OPTIONS = [
       : 'Mise exacte : 20 points par pli ; ratée : −10 par pli d’écart.' },
   { key: 'cannonball', label: 'Boulet de canon', type: 'toggle', def: false, when: o => o.scoring === 'rascal',
     desc: () => 'Chacun choisit : Chevrotine (Rascal normal) ou Boulet (15 par carte, tout ou rien).' },
+  { key: 'greybeard', label: 'Barbe Grise (à 2 joueurs)', type: 'toggle', def: true, when: (o, n) => n === 2,
+    desc: () => 'Règle officielle à 2 : une 3ᵉ main jouée par le fantôme Barbe Grise. Désactivez pour jouer en face à face.' },
   { key: 'kraken', label: 'Kraken', type: 'toggle', def: false, desc: () => 'Détruit un pli : personne ne le remporte.' },
   { key: 'whale', label: 'Baleine blanche', type: 'toggle', def: false, desc: () => 'Pli défaussé si seules des cartes spéciales y sont jouées.' },
   { key: 'loot', label: 'Cartes Butin', type: 'toggle', def: false, when: (o, n) => n > 2, desc: () => '+20 chacun si les deux alliés réussissent leur mise.' },
@@ -89,7 +91,7 @@ function roundScreen(api, game) {
   let bar;
   if (step === 'bid') {
     const sum = R.e.reduce((a, e) => a + e.bid, 0);
-    body += `<p class="hint center">Total misé : <b>${sum}</b> pour ${plural(R.cards, 'pli', 'plis')}${game.playerIds.length === 2 ? ' · Barbe Grise joue la 3ᵉ main' : ''}</p>`;
+    body += `<p class="hint center">Total misé : <b>${sum}</b> pour ${plural(R.cards, 'pli', 'plis')}${SK.hasGhost(game.options, game.playerIds.length) ? ' · Barbe Grise joue la 3ᵉ main' : ''}</p>`;
     bar = `<button class="btn btn-primary" data-act="sk.step" data-v="tricks">Passer aux plis ${icon('next', 20)}</button>`;
   } else {
     const st = trickStatus(game, R);

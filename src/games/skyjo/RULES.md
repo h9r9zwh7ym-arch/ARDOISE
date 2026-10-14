@@ -6,8 +6,6 @@
   <https://cdn.shopify.com/s/files/1/0019/1696/0881/files/SKYJO.pdf>. Elle est liée depuis la
   page de téléchargement de l'éditeur, <https://magilano.com/pages/download>. Les passages
   utilisés sont p. 4-5 (anglais), p. 6-7 (allemand) et p. 10-11 (français).
-- Notice officielle **SKYJO ACTION** (Magilano) :
-  <https://cdn.shopify.com/s/files/1/0019/1696/0881/files/SKYJO_ACTION.pdf>, p. 4-7 (anglais).
 
 ## Dans l'app
 
@@ -30,24 +28,10 @@ Ce qui en découle :
 - un score de manche nul ou négatif n'est jamais doublé ;
 - la partie s'arrête à la fin de la manche où quelqu'un atteint 100 points ou plus (100 compris).
 
-## Skyjo Action
-
-Le décompte est identique : on saisit le total de la grille et le doublement s'applique de la
-même façon (exemple II de la notice : un score de −5 n'est pas doublé). Ce qui change, c'est
-ce que chacun compte dans sa grille :
-- carte numérotée : sa valeur ;
-- carte étoile : 0 ;
-- carte action restée dans la grille : 10 points ;
-- série d'étoiles défaussée : −10 pour une colonne de 3, −15 pour une ligne de 4 ;
-- toute colonne ou ligne complète de cartes numérotées identiques (3 ou 4) est défaussée.
-
-Les variantes de la notice Action (sans cartes action, avec les seules cartes numérotées, 9
-cartes au lieu de 12) ne changent que la composition du paquet : rien à régler dans l'app.
-
 ## Variantes
 
-La notice de Skyjo classique ne propose **aucune variante officielle**. L'app propose seulement
-le choix de l'édition (Skyjo ou Skyjo Action), pour le rappel des règles et du décompte.
+La notice ne propose **aucune variante officielle**. Skyjo Action a été retiré de l'app à ta
+demande. Les variantes « maison » viendront peut-être plus tard.
 
 ## Points non traités par la notice : à trancher
 

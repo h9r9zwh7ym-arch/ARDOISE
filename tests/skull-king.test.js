@@ -107,3 +107,15 @@ test('Boulet de canon : bonus complets si exact, aucun sinon', () => {
   assert.equal(pts({ bid: 3, tricks: 3, shot: 'boul', b14: 1 }, 6, C), 90 + 20);
   assert.equal(pts({ bid: 3, tricks: 2, shot: 'boul', b14: 1 }, 6, C), 0);
 });
+
+test('À 2 joueurs, Barbe Grise est optionnel', async () => {
+  const { checkTricks, makeRound, cardsFor, hasGhost } = await import('../src/games/skull-king/scoring.js');
+  const R = makeRound(5, 2); R.e[0].tricks = 2; R.e[1].tricks = 1;
+  assert.equal(hasGhost(SK, 2), true);
+  assert.equal(checkTricks(R, SK, 2).ok, true);                        // 2 plis pour Barbe Grise
+  const NoGhost = { ...SK, greybeard: false };
+  assert.equal(checkTricks(R, NoGhost, 2).ok, false);                  // sans lui, les 5 plis sont aux joueurs
+  R.e[1].tricks = 3;
+  assert.equal(checkTricks(R, NoGhost, 2).ok, true);
+  assert.equal(cardsFor(10, NoGhost, 2), 10);
+});

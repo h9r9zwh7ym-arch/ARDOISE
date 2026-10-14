@@ -24,6 +24,12 @@ Les variantes **Révolution**, **le 2 bat tout**, **interdit de finir par un 2**
 **passage de tour** et **suites** ne changent pas le décompte. Elles servent seulement de rappel
 (« Règles de la table ») sur l'écran de saisie.
 
+## Jeu de cartes
+
+On choisit le jeu utilisé : 54 cartes (52 + 2 jokers au-dessus du 2) ou 36 cartes (6 à As, As le
+plus fort). Avec 36 cartes, les variantes liées au 2 (« le 2 bat tout », « interdit de finir par
+un 2 ») sont masquées.
+
 ## Choix faits par l'app : à valider
 
 1. **À 3 joueurs** (aucune source ne le prévoit) : Président, Neutre, Trou du cul. L'échange

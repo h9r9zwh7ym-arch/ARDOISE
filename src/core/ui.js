@@ -23,7 +23,9 @@ export function installDispatcher(root = document) {
 }
 
 export const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-export const sign = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v);
+/** Nombre à la française : virgule décimale (1037,5). */
+export const num = v => (Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10).replace('.', ','));
+export const sign = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + num(Math.abs(v));
 export const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 export const initial = name => (String(name || '?').trim()[0] || '?').toUpperCase();
 

@@ -16,7 +16,7 @@ test('Celui qui ferme avec strictement le plus petit score n’est pas doublé',
   assert.deepEqual(roundPoints(R([5, 24, 10], 0)), [5, 24, 10]);
 });
 
-test('Skyjo Action, exemple II : score de manche négatif ou nul jamais doublé', () => {
+test('Score de manche négatif ou nul jamais doublé (« only applies to positive points »)', () => {
   assert.deepEqual(roundPoints(R([-5, 10, -7], 0)), [-5, 10, -7]);
   assert.deepEqual(roundPoints(R([0, -3, 4], 0)), [0, -3, 4]);
 });

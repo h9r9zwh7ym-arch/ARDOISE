@@ -15,6 +15,9 @@ export const BONUSES = [
   { key: 'loot', icon: '💰',  label: 'Alliances Butin réussies',          pts: 20, unit: '20 pts chacune',  max: 2, opt: 'loot' }
 ];
 
+/** Partie à 2 avec le fantôme Barbe Grise (règle officielle, désactivable : opts.greybeard === false). */
+export const hasGhost = (opts, nPlayers) => nPlayers === 2 && opts.greybeard !== false;
+
 export function activeBonuses(opts) {
   return BONUSES.filter(b => !b.opt || opts[b.opt]);
 }
@@ -37,9 +40,9 @@ export function deckSize(opts, nPlayers) {
 }
 
 /** Nombre de cartes distribuées : même nombre pour tous, plafonné par la taille du paquet.
-    À 2 joueurs, 3 mains sont distribuées (Barbe Grise). */
+    À 2 joueurs avec Barbe Grise, 3 mains sont distribuées. */
 export function cardsFor(wanted, opts, nPlayers) {
-  const hands = nPlayers === 2 ? 3 : nPlayers;
+  const hands = hasGhost(opts, nPlayers) ? 3 : nPlayers;
   return Math.min(wanted, Math.floor(deckSize(opts, nPlayers) / Math.max(1, hands)));
 }
 
@@ -94,14 +97,14 @@ export function totals(rounds, opts, nPlayers, played) {
 /**
  * Vérifie la cohérence des plis saisis.
  * - Chaque pli est remporté par un joueur, sauf ceux détruits par le Kraken / la Baleine blanche.
- * - À 2 joueurs, Barbe Grise (le fantôme) prend les plis restants.
+ * - À 2 joueurs avec Barbe Grise (le fantôme), il prend les plis restants.
  * Retourne { ok, sum, cards, destroyed, ghost, rest, msg }.
  */
 export function checkTricks(round, opts, nPlayers) {
   const sum = round.e.reduce((a, e) => a + e.tricks, 0);
   const cards = round.cards;
   const destroyed = round.destroyed || 0;
-  const ghost = nPlayers === 2;
+  const ghost = hasGhost(opts, nPlayers);
   const counted = sum + destroyed;
   const rest = cards - counted;
   let ok, msg;

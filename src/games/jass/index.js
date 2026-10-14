@@ -5,17 +5,24 @@ import * as J from './scoring.js';
 import { RULES_HTML } from './rules-fr.js';
 import { esc, sign, avatar, segmented, icon, numField, plural } from '../../core/ui.js';
 
-const VARIANTS = [['schieber', 'Schieber'], ['coiffeur', 'Coiffeur'], ['diff', 'Différenzler']];
+const VARIANTS = [['schieber', 'Schieber'], ['coiffeur', 'Coiffeur'], ['diff', 'Différenzler'], ['deux', 'À deux']];
+const DECK_OPT = { key: 'deck', label: 'Jeu de cartes', type: 'choice', prominent: true, def: '36',
+  choices: [['36', '36 cartes'], ['54', '54 cartes']], desc: o => o.deck === '54' ? 'Jeu de 54 cartes : retirez les 2, 3, 4, 5 et les jokers pour garder les 36 cartes du Jass.' : 'Jeu de Jass de 36 cartes (6 à As).' };
 const OPTIONS = [
   { key: 'variant', label: 'Variante', type: 'choice', prominent: true, def: 'schieber', choices: VARIANTS,
     desc: o => ({
       schieber: 'À 4, deux équipes face à face. La première équipe qui atteint l’objectif gagne.',
       coiffeur: 'À 4, deux équipes. Chaque équipe joue chaque atout une fois, avec un facteur par ligne.',
-      diff: 'De 3 à 5 joueurs, chacun pour soi. On annonce ses points ; l’écart est une pénalité.'
+      diff: 'De 3 à 5 joueurs, chacun pour soi. On annonce ses points ; l’écart est une pénalité.',
+      deux: 'Schieber à 2 : chacun reçoit deux paquets de 9 cartes et joue le second après le premier.'
     })[o.variant] },
   { key: 'target', label: 'Objectif', type: 'choice', def: '1000', when: o => o.variant === 'schieber',
     choices: [['1000', '1000'], ['1500', '1500'], ['2500', '2500']],
     desc: () => 'Nombre de points à atteindre (2500 est courant avec les multiplicateurs).' },
+  { key: 'target2', label: 'Objectif', type: 'choice', def: '1000', when: o => o.variant === 'deux',
+    choices: [['500', '500'], ['1000', '1000']], desc: () => 'Le Schweizer Jassverzeichnis conseille 500 ou 1000 points.' },
+  { key: 'weis2', label: 'Weis et Stöck', type: 'toggle', def: false, when: o => o.variant === 'deux',
+    desc: () => 'Variante : autoriser les Weis (et les Stöck) dans le Schieber à deux.' },
   { key: 'factors', label: 'Multiplicateurs par atout', type: 'toggle', def: true, when: o => o.variant === 'schieber',
     desc: () => '♦ ♥ ×1, ♠ ♣ ×2, Obenabe et Undenufe ×3 : cartes, Weis et Stöck sont multipliés.' },
   { key: 'rows', label: 'Lignes', type: 'choice', def: '8', when: o => o.variant === 'coiffeur',
@@ -25,15 +32,20 @@ const OPTIONS = [
     desc: () => 'Écrire tous les points au lieu des seules dizaines (à convenir avant de jouer).' },
   { key: 'rounds', label: 'Nombre de jeux', type: 'choice', def: '12', when: o => o.variant === 'diff',
     choices: [['8', '8'], ['12', '12'], ['16', '16']], desc: () => 'Le règlement prévoit 12 jeux.' },
+  DECK_OPT,
   { key: 'exactBonus', label: 'Bonus annonce exacte', type: 'toggle', def: false, when: o => o.variant === 'diff',
     desc: () => '−10 points pour une annonce exacte (à convenir avant de jouer).' }
 ];
 
 const rulesBtn = `<button class="icon-btn" data-act="rules" data-game="jass" aria-label="Règles">${icon('book')}</button>`;
 const V = game => game.options.variant || 'schieber';
-const isTeam = o => (o.variant || 'schieber') !== 'diff';
+const isTeam = o => ['schieber', 'coiffeur'].includes(o.variant || 'schieber');
+// Schieber à 4 et Schieber à deux partagent la même saisie
+const isSch = v => v === 'schieber' || v === 'deux';
+/** Options de calcul du Schieber : à deux, pas de multiplicateurs, objectif 500 ou 1000. */
+const sopts = o => (o.variant === 'deux' ? { factors: false, target: +(o.target2 || 1000), noMatch: true, weis: !!o.weis2 } : { ...o, target: +(o.target || 1000), weis: true });
 const teamNames = names => [`${names[0]} et ${names[2]}`, `${names[1]} et ${names[3]}`];
-const target = o => +(o.target || 1000);
+const target = o => sopts(o).target;
 const usedRows = (game, exceptR) => {
   const u = [[], []];
   game.rounds.forEach((R, r) => { if (r !== exceptR && r < game.cur && R.row && (R.team === 0 || R.team === 1)) u[R.team].push(R.row); });
@@ -44,7 +56,7 @@ const ko = msg => ({ ok: false, html: `${icon('alert', 18)}<span>${msg}</span>` 
 
 /* ═══════════ Schieber ═══════════ */
 function schieberBody(game, R, p, sides) {
-  const o = game.options, cards = J.schieberCards(R);
+  const o = sopts(game.options), cards = J.schieberCards(R);
   const tr = J.trumpOf(R.trump);
   const noStoeck = o.factors && tr && (tr.id === 'obe' || tr.id === 'unde');
   let h = '';
@@ -59,7 +71,8 @@ function schieberBody(game, R, p, sides) {
     <div class="prow"><div class="prow-main"><div class="prow-txt"><span class="prow-n">${esc(sides[1])}</span><span class="prow-s">Le reste des 157</span></div>
       <span class="pts" id="${p}other">${R.match === 0 || R.match === 1 || typeof R.pts === 'number' ? cards[1] : '—'}</span></div></div>
     </div>
-    <div class="row-extra" style="padding-left:0">${[0, 1].map(i => `<button class="chip ${R.match === i ? 'on' : ''}" data-act="ja.match" data-p="${p}" data-i="${i}" aria-pressed="${R.match === i}">Match ${esc(sides[i])}</button>`).join('')}</div></section>`;
+    ${o.noMatch ? '' : `<div class="row-extra" style="padding-left:0">${[0, 1].map(i => `<button class="chip ${R.match === i ? 'on' : ''}" data-act="ja.match" data-p="${p}" data-i="${i}" aria-pressed="${R.match === i}">Match ${esc(sides[i])}</button>`).join('')}</div>`}</section>`;
+  if (!o.weis) return h;
   h += `<section class="section"><h2 class="label">Weis</h2><div class="card list" style="padding:0 16px">${[0, 1].map(i => `
     <div class="prow"><div class="prow-main"><div class="prow-txt"><span class="prow-n">${esc(sides[i])}</span></div><span class="pts">${R.weis[i] || 0}</span>
       ${R.weis[i] ? `<button class="icon-btn plain" data-act="ja.weisReset" data-p="${p}" data-i="${i}" aria-label="Effacer les Weis de ${esc(sides[i])}">${icon('close', 18)}</button>` : ''}</div>
@@ -72,9 +85,9 @@ function schieberBody(game, R, p, sides) {
   return h;
 }
 function schieberStatus(game, R, sides) {
-  const c = J.checkSchieber(R, game.options);
+  const c = J.checkSchieber(R, sopts(game.options));
   if (!c.ok) return ko(c.msg);
-  const t = J.schieberDetail(R, game.options).total;
+  const t = J.schieberDetail(R, sopts(game.options)).total;
   return ok(`${esc(sides[0])} ${sign(t[0])} · ${esc(sides[1])} ${sign(t[1])}`);
 }
 
@@ -133,7 +146,7 @@ export default {
   id: 'jass',
   name: 'Jass',
   tagline: 'Schieber, Coiffeur, Différenzler',
-  players: o => (isTeam(o) ? { min: 4, max: 4 } : { min: 3, max: 5 }),
+  players: o => (isTeam(o) ? { min: 4, max: 4 } : o.variant === 'deux' ? { min: 2, max: 2 } : { min: 3, max: 5 }),
   winner: game => (V(game) === 'diff' ? 'lowest' : 'highest'),
   roundsLabel: n => `${n} jeu${n > 1 ? 'x' : ''}`,
   formats: [],
@@ -146,6 +159,7 @@ export default {
   optionsSummary(o) {
     if (o.variant === 'coiffeur') return `${o.rows || 8} lignes${o.fullPoints ? ' · points complets' : ' · dizaines'}`;
     if (o.variant === 'diff') return `${o.rounds || 12} jeux${o.exactBonus ? ' · bonus annonce exacte' : ''}`;
+    if (o.variant === 'deux') return `Objectif ${o.target2 || 1000}${o.weis2 ? ' · Weis et Stöck' : ''}`;
     return `Objectif ${o.target || 1000}${o.factors ? ' · multiplicateurs' : ''}`;
   },
 
@@ -163,39 +177,39 @@ export default {
     return game;
   },
   prepareRound(game) {
-    if (V(game) === 'schieber') while (game.rounds.length <= game.cur) game.rounds.push(J.schieberRound());
+    if (isSch(V(game))) while (game.rounds.length <= game.cur) game.rounds.push(J.schieberRound());
   },
   isOver(game) {
-    if (V(game) !== 'schieber') return game.cur >= game.rounds.length;
+    if (!isSch(V(game))) return game.cur >= game.rounds.length;
     const n = Math.min(game.cur, game.rounds.length), t = [0, 0];
-    for (let r = 0; r < n; r++) J.schieberDetail(game.rounds[r], game.options).total.forEach((v, i) => { t[i] += v; });
+    for (let r = 0; r < n; r++) J.schieberDetail(game.rounds[r], sopts(game.options)).total.forEach((v, i) => { t[i] += v; });
     return t.some(v => v >= target(game.options));
   },
   decideWinners(game) {
-    if (V(game) !== 'schieber') return null;
-    return J.schieberWinners(game.rounds.slice(0, game.rounds.length), { ...game.options, target: target(game.options) });
+    if (!isSch(V(game))) return null;
+    return J.schieberWinners(game.rounds, sopts(game.options));
   },
   roundPoints(game, r) {
     const R = game.rounds[r], v = V(game);
     if (v === 'coiffeur') return J.coiffeurPoints(R, game.options);
     if (v === 'diff') return J.diffPoints(R, game.options);
-    return J.schieberDetail(R, game.options).total;
+    return J.schieberDetail(R, sopts(game.options)).total;
   },
   validateRound(game, R, r = game.cur) {
     const v = V(game);
     if (v === 'coiffeur') return J.checkCoiffeur(R, usedRows(game, r));
     if (v === 'diff') return J.checkDiff(R);
-    return J.checkSchieber(R, game.options);
+    return J.checkSchieber(R, sopts(game.options));
   },
   roundHead(game, r) {
     const R = game.rounds[r], v = V(game);
-    if (v === 'schieber') { const t = J.trumpOf(R.trump); return { label: `J${r + 1}`, sub: t ? t.sym : '', long: t ? `atout ${t.label}` : '' }; }
+    if (isSch(v)) { const t = J.trumpOf(R.trump); return { label: `J${r + 1}`, sub: t ? t.sym : '', long: t ? `atout ${t.label}` : '' }; }
     if (v === 'coiffeur') { const row = J.COIFFEUR_ROWS.find(x => x.id === R.row); return { label: `J${r + 1}`, sub: row ? '×' + row.factor : '', long: row ? row.label : '' }; }
     return { label: `J${r + 1}`, sub: '', long: '' };
   },
   progress(game, totals) {
     const v = V(game);
-    if (v === 'schieber') {
+    if (isSch(v)) {
       const max = totals && totals.length ? Math.max(0, ...totals) : 0, tg = target(game.options);
       return { total: tg, ratio: Math.min(1, max / tg), label: `Jeu ${game.cur + 1} · objectif ${tg}` };
     }
@@ -204,7 +218,7 @@ export default {
   nextLabel(game) { return `Jeu ${game.cur + 1}`; },
   endStats(game) {
     const v = V(game);
-    if (v === 'schieber') {
+    if (isSch(v)) {
       const matches = game.rounds.filter(R => R.match === 0 || R.match === 1).length;
       const weis = game.rounds.reduce((s, R) => s + (R.weis[0] || 0) + (R.weis[1] || 0), 0);
       return [{ v: game.rounds.length, l: 'jeux' }, { v: matches, l: matches > 1 ? 'Matchs' : 'Match' }, { v: weis, l: 'points de Weis' }];
@@ -220,11 +234,13 @@ export default {
   roundScreen(api, game) {
     const v = V(game), R = game.rounds[game.cur], names = api.names(game), sides = api.sideNames(game);
     let body, st, sub;
-    if (v === 'schieber') {
+    if (isSch(v)) {
       body = schieberBody(game, R, 'ja', sides); st = schieberStatus(game, R, sides);
-      sub = `Schieber · objectif ${target(game.options)}`;
+      sub = `${v === 'deux' ? 'Jass à deux' : 'Schieber'} · objectif ${target(game.options)}`;
+      if (game.options.deck === '54' && game.cur === 0) body = `<p class="note">Jeu de 54 cartes : retirez les 2, 3, 4, 5 et les jokers.</p>` + body;
     } else if (v === 'coiffeur') {
       body = coiffeurBody(game, R, 'ja', sides, game.cur); st = coiffeurStatus(game, R, sides, game.cur);
+      if (game.options.deck === '54' && game.cur === 0) body = `<p class="note">Jeu de 54 cartes : retirez les 2, 3, 4, 5 et les jokers.</p>` + body;
       sub = `Coiffeur · ${plural(game.rounds.length - game.cur, 'jeu restant', 'jeux restants')}`;
     } else {
       const step = game.step === 'pts' ? 'pts' : 'pred';
@@ -247,7 +263,7 @@ export default {
 
   editorBody(api, game, draft) {
     const v = V(game), R = draft.round, sides = api.sideNames(game), names = api.names(game);
-    if (v === 'schieber') return { body: schieberBody(game, R, 'ed', sides), status: schieberStatus(game, R, sides) };
+    if (isSch(v)) return { body: schieberBody(game, R, 'ed', sides), status: schieberStatus(game, R, sides) };
     if (v === 'coiffeur') return { body: coiffeurBody(game, R, 'ed', sides, draft.r), status: coiffeurStatus(game, R, sides, draft.r) };
     return {
       body: `<h3 class="label">Annonces</h3>${diffBody(game, R, 'edp', names, 'pred')}<h3 class="label">Points faits</h3>${diffBody(game, R, 'ed', names, 'pts')}`,
@@ -306,7 +322,7 @@ export default {
       'ja.validate': () => {
         const game = g(), R = game.rounds[game.cur];
         const res = V(game) === 'coiffeur' ? J.checkCoiffeur(R, usedRows(game, game.cur))
-          : V(game) === 'diff' ? J.checkDiff(R) : J.checkSchieber(R, game.options);
+          : V(game) === 'diff' ? J.checkDiff(R) : J.checkSchieber(R, sopts(game.options));
         if (!res.ok) { api.toast(res.msg); api.shake('ja-tally'); return; }
         game.step = 'pred';
         api.finishRound(game);

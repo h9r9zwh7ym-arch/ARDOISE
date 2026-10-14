@@ -41,5 +41,11 @@ export const RULES_HTML = `
 <div class="rule-p">De 3 à 5 joueurs, chacun pour soi (à 5, on retire un 6). L'atout est donné par la dernière carte distribuée. Avant de jouer, chacun annonce combien de points il pense faire (0 à 157).</div>
 <div class="rule-p">L'<b>écart</b> entre l'annonce et les points faits est une pénalité. Pas de Weis. Après 12 jeux, le plus petit total gagne.</div>
 
+<div class="rule-h">Jass à deux (Schieber zu Zweit)</div>
+<div class="rule-p">Chaque joueur reçoit <b>deux paquets de 9 cartes</b> face cachée et en choisit un. L'adversaire du donneur annonce l'atout. On joue les 9 premières cartes, puis on prend le second paquet ; celui qui a fait le 9ᵉ pli entame. Chacun compte ses points (157 par jeu). Objectif : 500 ou 1000 points. Weis en variante.</div>
+
+<div class="rule-h">Jeu de cartes</div>
+<div class="rule-p">Le Jass se joue avec <b>36 cartes</b> (6 à As). Avec un jeu de 54 cartes, retirez les 2, 3, 4, 5 et les deux jokers.</div>
+
 <div class="note">Règles résumées d'après jassverzeichnis.ch et schieber.ch. Application de score non officielle.</div>
 `;

@@ -5,6 +5,7 @@ export const RULES_HTML = `
 
 <div class="rule-h">Ordre des cartes</div>
 <div class="rule-p">Du plus faible au plus fort : 3, 4, 5, 6, 7, 8, 9, 10, Valet, Dame, Roi, As, <b>2</b> (le joker, s'il est utilisé, est au-dessus du 2).</div>
+<div class="rule-p">Avec un <b>jeu de 36 cartes</b> (6 à As), l'ordre va du 6 à l'<b>As</b>, la carte la plus forte : les règles du 2 ne s'appliquent pas.</div>
 
 <div class="rule-h">Un tour</div>
 <div class="rule-p">Le premier joueur pose une carte, une paire, un brelan ou un carré. Chacun doit poser autant de cartes, d'une valeur plus forte, ou passer. Quand tout le monde passe, le dernier à avoir joué ramasse le pli et recommence.</div>
