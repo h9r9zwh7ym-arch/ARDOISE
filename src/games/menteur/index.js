@@ -16,7 +16,7 @@ function rows(game, R, p, names, totals) {
   const w = M.roundWinner(R), losers = M.checkRound(R).ok ? M.roundLosers(R) : [];
   return `<ul class="card list">${names.map((n, i) => {
     const v = R.left[i];
-    const sub = w === i ? '<b class="pos">A gagné la manche</b>' : losers.includes(i) ? 'A perdu la manche' : (totals ? `Total ${totals[i]}` : '');
+    const sub = w === i ? '<b class="pos">Gagnant</b>' : losers.includes(i) ? 'Perdant' : (totals ? `Total ${totals[i]}` : '');
     return `<li class="prow"><div class="prow-main">${avatar(n, w === i ? 'lead' : '')}
       <div class="prow-txt"><span class="prow-n">${esc(n)}</span><span class="prow-s">${sub}</span></div>
       ${stepper({ value: v || 0, act: 'me.step', data: { p, i }, label: `Cartes de ${n}`, max: M.MAX_CARDS })}</div></li>`;
